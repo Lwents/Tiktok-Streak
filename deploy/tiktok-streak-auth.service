@@ -1,0 +1,20 @@
+[Unit]
+Description=TikTok Streak web login and sessions
+After=network.target
+
+[Service]
+User=tiktok-streak
+Group=tiktok-streak
+WorkingDirectory=/opt/tiktok-streak
+UMask=0077
+ExecStart=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/deploy/web_auth.py --origin https://160.250.180.133:8443 --credentials /var/lib/tiktok-streak/web-auth.json --sessions /var/lib/tiktok-streak/web-sessions.sqlite3
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tiktok-streak
+
+[Install]
+WantedBy=multi-user.target

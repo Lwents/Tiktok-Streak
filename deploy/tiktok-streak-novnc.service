@@ -1,0 +1,16 @@
+[Unit]
+Description=Private web browser screen for TikTok Streak
+After=tiktok-streak-vnc.service
+Requires=tiktok-streak-vnc.service
+
+[Service]
+User=tiktok-streak
+Group=tiktok-streak
+Environment=TIKTOK_PUBLIC_ORIGIN=https://160.250.180.133:8443
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/tiktok-streak/deploy/private_screen.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

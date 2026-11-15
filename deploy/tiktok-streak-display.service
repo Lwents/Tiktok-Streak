@@ -1,0 +1,14 @@
+[Unit]
+Description=Virtual display for TikTok Streak
+After=network.target
+
+[Service]
+User=tiktok-streak
+Group=tiktok-streak
+UMask=0077
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1440x1000x24 -nolisten tcp -auth /var/lib/tiktok-streak/.Xauthority
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

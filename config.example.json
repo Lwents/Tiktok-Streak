@@ -1,0 +1,8 @@
+{
+  "message": "Giữ chuỗi nha 🔥",
+  "interval_hours": 20,
+  "editor_selector": "[contenteditable=\"true\"][data-e2e=\"message-input\"]",
+  "conversations": [
+    {"name": "Tên bạn", "url": "https://www.tiktok.com/messages?PLACEHOLDER_REPLACE_WITH_REAL_CONVERSATION_URL"}
+  ]
+}

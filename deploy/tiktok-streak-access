@@ -1,0 +1,11 @@
+#!/usr/bin/python3 -I
+"""Restricted SSH command: start this application only, never execute client text."""
+import os
+import subprocess
+
+if os.environ.get('SSH_ORIGINAL_COMMAND') != 'systemctl start tiktok-streak':
+    raise SystemExit(1)
+
+subprocess.run(['/usr/bin/systemctl', 'start', 'tiktok-streak-display', 'tiktok-streak-window',
+                'tiktok-streak-vnc', 'tiktok-streak-novnc', 'tiktok-streak'], check=True)
+print('TikTok Streak service is ready.')

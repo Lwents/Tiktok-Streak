@@ -1,0 +1,26 @@
+[Unit]
+Description=TikTok Streak daily dashboard
+After=network-online.target tiktok-streak-display.service
+Wants=network-online.target
+Requires=tiktok-streak-display.service
+
+[Service]
+Type=simple
+User=tiktok-streak
+Group=tiktok-streak
+WorkingDirectory=/opt/tiktok-streak
+Environment=HOME=/var/lib/tiktok-streak
+Environment=DISPLAY=:99
+Environment=XAUTHORITY=/var/lib/tiktok-streak/.Xauthority
+Environment=TZ=Asia/Ho_Chi_Minh
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStartPre=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/deploy/wait_display.py
+ExecStart=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/web_app.py --persist-automation --public-origin https://160.250.180.133:8443
+KillSignal=SIGINT
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

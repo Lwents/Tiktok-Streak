@@ -1,0 +1,19 @@
+[Unit]
+Description=Window manager for TikTok Streak browser
+After=tiktok-streak-display.service
+Requires=tiktok-streak-display.service
+
+[Service]
+User=tiktok-streak
+Group=tiktok-streak
+Environment=HOME=/var/lib/tiktok-streak
+Environment=DISPLAY=:99
+Environment=XAUTHORITY=/var/lib/tiktok-streak/.Xauthority
+UMask=0077
+ExecStartPre=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/deploy/wait_display.py
+ExecStart=/usr/bin/openbox --sm-disable
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

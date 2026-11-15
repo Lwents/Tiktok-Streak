@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="app-token" content="__APP_TOKEN__">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>Streak — Giữ lửa mỗi ngày</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<svg class="svg-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-fire" viewBox="0 0 24 24"><path d="M13 2c1 5-3 5-3 9-2-1-3-3-3-3-3 3-4 6-2 10 1.5 3 5 4 7 4 5 0 8-3 8-7 0-5-4-8-4-8s1 5-2 6c2-6-1-11-1-11Z"/><path d="M12 14c-2 2-3 3-2 5 1 2 4 2 5 0 1-2-1-4-1-4s0 2-1 2c0-2-1-3-1-3Z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5A8.5 8.5 0 0 1 10.5 3h2a8.5 8.5 0 0 1 8.5 8.5Z"/><path d="M7 9h10M7 14h6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6a8 8 0 0 1 13.7 5M4.2 13A8 8 0 0 0 18 18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m3 10v-2a6 6 0 0 0-3-5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4L22 2ZM11 13 22 2"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 8a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 4h.01"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M6 5a9 9 0 1 0 12 0"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 13 8-13 8V4Z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></symbol>
+</svg>
+<aside class="sidebar">
+  <a class="brand" href="#overview" aria-label="Streak, trang chủ"><span class="brand-mark"><svg><use href="#i-fire"/></svg></span><span>streak<span class="brand-dot">.</span></span></a>
+  <div class="workspace"><span class="workspace-avatar" id="workspace-avatar">S</span><div class="workspace-identity"><strong id="workspace-name">Tài khoản TikTok</strong><span id="workspace-handle">Chưa kết nối</span></div><button id="account-refresh" class="workspace-refresh" aria-label="Cập nhật tài khoản TikTok" title="Cập nhật tài khoản"><svg><use href="#i-refresh"/></svg></button></div>
+  <p class="nav-label">KHÔNG GIAN LÀM VIỆC</p>
+  <nav aria-label="Điều hướng">
+    <a class="nav-link active" href="#overview"><svg><use href="#i-grid"/></svg>Tổng quan<span class="nav-active-dot"></span></a>
+    <a class="nav-link" href="#friends"><svg><use href="#i-users"/></svg>Cuộc trò chuyện<span id="nav-count" class="nav-count">0</span></a>
+    <a class="nav-link" href="#composer"><svg><use href="#i-message"/></svg>Soạn tin nhắn</a>
+    <a class="nav-link" href="#activity"><svg><use href="#i-clock"/></svg>Nhật ký hoạt động</a>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="little-note"><span class="little-fire">✦</span><strong>Kết nối nhỏ, mỗi ngày.</strong><p>Một tin nhắn cũng đủ để nhắc nhau rằng mình vẫn ở đây.</p></div>
+    <a class="nav-link" id="browser-screen" href="/browser/" target="_blank" rel="noopener" hidden><svg><use href="#i-globe"/></svg>Màn hình Chrome</a>
+    <button class="nav-link plain" id="help-button"><svg><use href="#i-help"/></svg>Hướng dẫn sử dụng</button>
+    <button class="nav-link plain" id="shutdown-button"><svg><use href="#i-power"/></svg><span id="shutdown-label">Tắt ứng dụng</span></button>
+    <div class="local-foot"><span class="dot green"></span><span id="runtime-label">Chạy trên máy của bạn</span><span class="version">v1.0</span></div>
+  </div>
+</aside>
+<div class="page">
+  <header class="topbar"><div class="breadcrumb">Không gian làm việc <svg><use href="#i-chevron"/></svg><strong>Tổng quan</strong></div><div class="top-right"><span class="local-badge"><span class="dot green"></span><span id="runtime-location">Local workspace</span></span><div class="account-top"><div class="account-top-text"><strong id="account-top-name">Tài khoản TikTok</strong><span id="account-top-handle">Chưa kết nối</span></div><span class="profile-avatar" id="top-avatar">S</span></div><button class="button secondary small" id="web-logout" hidden>Đăng xuất</button></div></header>
+  <main id="overview">
+    <div class="page-heading"><div><p class="eyebrow">MỘT NGÀY MỚI, MỘT KẾT NỐI MỚI</p><h1>Bảng điều khiển</h1><p class="page-subtitle" id="page-subtitle">Chăm chút những cuộc trò chuyện, giữ lửa cùng bạn bè.</p></div><div class="date-label"><svg><use href="#i-clock"/></svg><span id="today"></span></div></div>
+    <div id="offline-banner" class="offline-banner" hidden>Không kết nối được với tool. Mở lại <strong>start.bat</strong> trên Windows rồi tải lại trang.</div>
+    <section class="hero" aria-labelledby="hero-title"><div class="hero-content"><span class="hero-tag"><svg><use href="#i-fire"/></svg>STREAK COMPANION</span><h2 id="hero-title">Giữ lửa mỗi ngày<span>.</span></h2><p>Thêm một tin nhắn. Thêm một ngày kết nối.<br>Để những chuỗi thân quen luôn tiếp tục.</p><div class="hero-buttons"><button id="hero-login" class="button dark"><svg><use href="#i-globe"/></svg><span id="hero-login-label">Kết nối TikTok</span><svg class="button-end"><use href="#i-arrow"/></svg></button><button id="qr-login" class="button qr-button"><svg><use href="#i-grid"/></svg>Đăng nhập bằng QR</button></div></div><div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="art-spark spark-one">✦</div><div class="art-spark spark-two">✧</div><div class="floating-chat chat-one"><span></span><span></span><span></span></div><div class="flame-tile"><svg viewBox="0 0 24 24"><use href="#i-fire"/></svg></div><div class="art-label"><span class="dot orange"></span>Mỗi ngày, một kết nối</div></div></section>
+    <section class="stats" aria-label="Thống kê phiên làm việc">
+      <article class="stat-card"><div><p>Chuỗi tự tìm được</p><strong id="streak-count">—</strong><span id="scan-hint">Quét danh sách để cập nhật</span></div><span class="stat-icon peach"><svg><use href="#i-fire"/></svg></span></article>
+      <article class="stat-card"><div><p>Người nhận đã chọn</p><strong id="selected-count">00</strong><span>Sẵn sàng cho lượt gửi tiếp theo</span></div><span class="stat-icon lilac"><svg><use href="#i-users"/></svg></span></article>
+      <article class="stat-card"><div><p>Lượt gửi trong phiên</p><strong id="sent-count">00</strong><span>Đã thấy tin nhắn mới trong chat</span></div><span class="stat-icon mint"><svg><use href="#i-send"/></svg></span></article>
+    </section>
+    <div class="work-grid">
+      <section id="friends" class="panel friends-panel"><div class="panel-header"><div><h2>Cuộc trò chuyện <span class="count-chip" id="friends-count">0</span></h2><p>Tự chọn chat có chuỗi. Chat đã rep hôm nay sẽ được bỏ qua.</p></div><button class="button secondary small" id="scan-button"><svg><use href="#i-refresh"/></svg><span>Quét danh sách</span></button></div>
+        <div class="friends-tools"><label class="search-box"><svg><use href="#i-search"/></svg><input id="search" type="search" placeholder="Tìm tên bạn bè…" aria-label="Tìm tên bạn bè"></label><label class="select-all"><input id="select-all" type="checkbox"><span>Chọn tất cả</span></label></div>
+        <div class="status-tools"><label for="streak-filter">Hiển thị</label><select id="streak-filter"><option value="all">Tất cả cuộc trò chuyện</option><option value="verified">Đủ bằng chứng chuỗi</option><option value="needed">Chưa rep hôm nay</option><option value="replied">Đã rep hôm nay</option><option value="unknown">Chưa xác minh</option></select></div><div id="scan-notice" class="scan-notice" role="status" hidden></div><div class="table-labels"><span>NGƯỜI NHẬN</span><span>CHUỖI</span></div>
+        <div id="friend-list" class="friend-list"></div>
+        <div id="empty-state" class="empty-state"><div class="empty-art" aria-hidden="true"><div class="empty-chat"><svg><use href="#i-message"/></svg></div><span class="empty-flame"><svg><use href="#i-fire"/></svg></span></div><h3 id="empty-title">Những kết nối đang chờ bạn</h3><p id="empty-description">Đăng nhập TikTok rồi quét danh sách.<br>Những người có huy hiệu chuỗi sẽ xuất hiện ở đây.</p><button class="text-button" id="empty-login"><span id="empty-action-label">Bắt đầu kết nối</span><svg><use href="#i-arrow"/></svg></button></div>
+        <div id="no-results" class="no-results" hidden>Không có tên phù hợp với tìm kiếm.</div>
+        <div class="panel-foot"><span class="dot" id="browser-dot"></span><span id="browser-status">Chưa mở trình duyệt TikTok</span><span class="browser-select-wrap"><label for="browser-select">Trình duyệt</label><select id="browser-select"><option value="chrome">Chrome</option><option value="msedge">Edge</option></select></span></div>
+      </section>
+      <section id="composer" class="panel composer-panel"><div class="panel-header"><div><h2>Tin nhắn của bạn</h2><p>Một lời nhắn nhỏ để chuỗi tiếp tục.</p></div><span class="soft-icon"><svg><use href="#i-message"/></svg></span></div>
+        <div class="composer-body"><label class="field-label" for="message">Nội dung tin nhắn</label><div class="textarea-wrap"><textarea id="message" rows="3" maxlength="500" placeholder="Gửi một lời nhắn đến bạn bè…"></textarea><span id="char-count" class="char-count">0 / 500</span></div>
+          <div class="preview-caption"><span></span>XEM TRƯỚC<span></span></div><div class="message-preview"><div class="preview-bubble" id="preview-bubble"></div><span>Bạn · Tin nhắn sẽ được gửi như trên</span></div>
+          <div class="interval-row" hidden><div><label class="field-label" for="hours">Khoảng cách gửi</label><p>Tính riêng cho từng người nhận</p></div><div class="number-control"><button id="hours-minus" aria-label="Giảm một giờ">−</button><input id="hours" type="number" min="1" max="168" step="1" value="20" aria-label="Khoảng cách gửi theo giờ"><span>giờ</span><button id="hours-plus" aria-label="Tăng một giờ">+</button></div></div>
+          <span id="interval-preview" hidden></span><div class="interval-row" id="daily-schedule"><div><span class="field-label">Lịch giữ chuỗi</span><p>Theo giờ trên máy tính của bạn</p></div><strong>00:00 mỗi ngày</strong></div><div class="schedule-note"><svg><use href="#i-clock"/></svg><span>Khi bật sẽ kiểm tra ngay. Sang ngày mới tự rep; chat đã rep hôm nay được bỏ qua.</span></div>
+          <div class="send-actions"><button id="auto-button" class="button primary"><svg><use href="#i-play"/></svg>Bật giữ chuỗi</button><button id="send-button" class="button secondary"><svg><use href="#i-send"/></svg>Gửi một lượt</button></div><button id="stop-button" class="button stop-button" hidden><svg><use href="#i-stop"/></svg>Dừng tác vụ</button><p class="send-footnote" id="send-note">Chọn người nhận trong danh sách để bắt đầu.</p>
+        </div>
+      </section>
+    </div>
+    <section id="activity" class="panel activity-panel"><div class="panel-header"><div><h2>Nhật ký hoạt động</h2><p>Mọi lượt kiểm tra và gửi tin, ngay tại đây.</p></div><span class="live-badge"><span class="dot green"></span>TRỰC TIẾP</span></div><div id="activity-list" class="activity-list" aria-live="polite" aria-relevant="additions"></div></section>
+    <footer class="main-footer"><span>streak<span class="brand-dot">.</span> <span class="footer-separator">/</span> Một chút quan tâm, mỗi ngày.</span><span>Giữ máy hoạt động khi bật tự động.</span></footer>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<dialog id="help-dialog"><button class="dialog-close" id="close-help" aria-label="Đóng hướng dẫn">×</button><span class="dialog-icon"><svg><use href="#i-fire"/></svg></span><h2>Bắt đầu giữ lửa</h2><ol><li><strong>Kết nối TikTok</strong><p>Chọn Chrome hoặc Edge, bấm Kết nối TikTok. Nếu Google từ chối đăng nhập, bấm Đăng nhập bằng QR rồi quét và xác nhận trên điện thoại.</p></li><li><strong>Tìm người đang có chuỗi</strong><p>Vào Tin nhắn trên TikTok, tool tự quét và chọn chat có chuỗi. Bỏ chọn chat bạn không muốn gửi.</p></li><li><strong>Gửi một lời nhắn</strong><p>Soạn tin rồi bấm Gửi một lượt để kiểm tra/gửi một đợt, hoặc Bật giữ chuỗi để tự kiểm tra/gửi sau 00:00 mỗi ngày.</p></li></ol><p class="dialog-note">Tool gửi theo lịch. Nhận diện huy hiệu còn cần kiểm tra trên tài khoản thật; nếu không xác minh được, tool sẽ bỏ qua. Giữ máy thức và ứng dụng chạy khi bật tự động.</p><button class="button primary" id="understood">Đã hiểu, bắt đầu thôi</button></dialog>
+</body>
+</html>

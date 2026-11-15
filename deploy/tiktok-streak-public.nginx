@@ -1,0 +1,79 @@
+map $http_upgrade $tiktok_streak_connection {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 8443 ssl;
+    listen [::]:8443 ssl;
+    server_name 160.250.180.133;
+
+    ssl_certificate /etc/letsencrypt/live/160.250.180.133/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/160.250.180.133/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+
+    location = /_streak_auth {
+        internal;
+        proxy_pass http://127.0.0.1:8766/auth;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host $http_host;
+        proxy_set_header Cookie $http_cookie;
+    }
+    location = /login {
+        client_max_body_size 4k;
+        proxy_pass http://127.0.0.1:8766;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location ^~ /login/ {
+        proxy_pass http://127.0.0.1:8766;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    location = /logout {
+        proxy_pass http://127.0.0.1:8766;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+    }
+    location @streak_login {
+        return 302 /login?next=$uri;
+    }
+    location /api/ {
+        auth_request /_streak_auth;
+        proxy_pass http://127.0.0.1:8765;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+    }
+    location = /browser {
+        return 302 /browser/;
+    }
+    location = /browser/ {
+        return 302 /browser/vnc.html?autoconnect=1&resize=scale&path=browser/websockify;
+    }
+    location ^~ /browser/ {
+        auth_request /_streak_auth;
+        error_page 401 = @streak_login;
+        proxy_pass http://127.0.0.1:6080/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $tiktok_streak_connection;
+        proxy_read_timeout 3600s;
+    }
+    location / {
+        auth_request /_streak_auth;
+        error_page 401 = @streak_login;
+        proxy_pass http://127.0.0.1:8765;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header Origin $http_origin;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
