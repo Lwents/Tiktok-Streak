@@ -1,4 +1,5 @@
 """DOM adapter. Fails closed when TikTok doesn't expose a verifiable badge."""
+import re
 import time
 from pathlib import Path
 from datetime import date, timedelta
@@ -181,6 +182,19 @@ class TikTokBrowser:
         if url.hostname != 'www.tiktok.com' or not url.path.startswith('/messages'):
             self.login()
         self.page.locator(self.row_selector).first.wait_for(state='visible', timeout=20000)
+        self.dismiss_sleep_reminder()
+
+    def dismiss_sleep_reminder(self):
+        """Use TikTok's temporary return button without changing reminder settings."""
+        reminder = self.page.locator('[class*="SleepHoursContainer"]:visible')
+        if not reminder.count():
+            return False
+        button = reminder.get_by_role('button', name=re.compile(r'^Return for now$', re.I))
+        if button.count() != 1 or not button.is_visible():
+            raise RuntimeError('TikTok đang hiện nhắc giờ ngủ. Mở Màn hình Chrome để xác nhận trước khi gửi.')
+        button.click(timeout=5000)
+        reminder.first.wait_for(state='hidden', timeout=5000)
+        return True
 
     def rows(self):
         return self.page.locator(self.row_selector)
@@ -343,6 +357,7 @@ class TikTokBrowser:
                 raise RuntimeError('Lịch sử hiện tại không còn đủ bằng chứng chuỗi. Quét lại trước khi gửi.')
             history_validated = True
         row = self.find_target(target, history_validated=history_validated)
+        self.dismiss_sleep_reminder()
         row.click()
         if target.get('conversation_id'):
             selected = self.page.locator('[data-e2e="dm-new-conversation-item"][aria-selected="true"]')
@@ -370,6 +385,7 @@ class TikTokBrowser:
 
     def send(self, message):
         from playwright.sync_api import expect
+        self.dismiss_sleep_reminder()
         # Count occurrences inside chat message nodes, excluding the editor and sidebar.
         matches = self.page.locator(self.message_selector).filter(has=self.page.get_by_text(message, exact=True))
         before = matches.count()

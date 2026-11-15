@@ -18,6 +18,7 @@ UMask=0077
 ExecStartPre=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/deploy/wait_display.py
 ExecStart=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/web_app.py --persist-automation --public-origin https://160.250.180.133:8443
 KillSignal=SIGINT
+KillMode=mixed
 TimeoutStopSec=90
 Restart=on-failure
 RestartSec=5

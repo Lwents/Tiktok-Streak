@@ -95,6 +95,36 @@ class BrowserChecks(unittest.TestCase):
         self.page.set_content('<div id="row"><span class="streak expired">99</span><span class="streak" style="display:none">42</span></div>')
         self.assertIsNone(self.page.locator('#row').evaluate(BADGE_JS))
 
+    def test_sleep_reminder_returns_to_inbox_without_changing_settings(self):
+        target = self.fixture()
+        self.page.evaluate('''() => {
+          const reminder=document.createElement('div');
+          reminder.className='css-fixture--SleepHoursContainer';
+          reminder.style='position:fixed;inset:0;background:black;z-index:9999';
+          reminder.innerHTML='<h1>Sleep hours</h1><button>Return for now</button><button>Edit sleep hours</button>';
+          reminder.querySelector('button').onclick=()=>reminder.remove();
+          reminder.lastElementChild.onclick=()=>window.changedSleepSettings=true;
+          document.body.append(reminder);
+        }''')
+        self.adapter.prepare(target)
+        self.assertFalse(self.page.locator('[class*="SleepHoursContainer"]').count())
+        self.assertFalse(self.page.evaluate('Boolean(window.changedSleepSettings)'))
+        self.assertEqual(self.adapter.editor.inner_text(), '')
+
+    def test_unrecognized_sleep_gate_and_other_dialogs_are_not_bypassed(self):
+        self.fixture()
+        self.page.evaluate('''() => {
+          document.body.insertAdjacentHTML('beforeend', '<div class="SleepHoursContainer"><button>Ask parent for more time</button></div>');
+        }''')
+        with self.assertRaisesRegex(RuntimeError, 'nhắc giờ ngủ'):
+            self.adapter.dismiss_sleep_reminder()
+        self.page.locator('[class*="SleepHoursContainer"]').evaluate('el=>el.remove()')
+        self.page.evaluate('''() => {
+          document.body.insertAdjacentHTML('beforeend', '<div role="dialog"><button>Return for now</button></div>');
+        }''')
+        self.assertFalse(self.adapter.dismiss_sleep_reminder())
+        self.assertTrue(self.page.get_by_role('dialog').is_visible())
+
     def test_account_identity_comes_from_own_profile_navigation(self):
         self.fixture()
         self.page.set_content('''<a data-e2e="nav-profile" href="/@owner">Profile<img src="/avatar.png"></a>

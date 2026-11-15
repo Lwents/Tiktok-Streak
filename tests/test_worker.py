@@ -357,6 +357,30 @@ class WorkerChecks(unittest.TestCase):
         self.assertEqual(FakeBrowser.sent,0)
         self.assertFalse((Path(self.tmp.name)/'automation.json').exists())
 
+    def test_vps_shutdown_keeps_schedule_when_browser_exits_during_pump(self):
+        saved=self.send_payload();FakeBrowser.reply_answers=['replied'];FakeBrowser.scan_status='verified'
+        self.persistent_worker(saved)
+        self.worker.commands.put(('restore',{'channel':'chrome'}))
+        self.wait_event('log',lambda value:'Đã khôi phục lịch tự động' in value)
+        self.wait_event('ready')
+        def shutdown_during_pump(browser):
+            self.worker.closing.set()
+            return False
+        with patch.object(FakeBrowser,'pump',shutdown_during_pump):
+            self.worker.join(timeout=3)
+        self.assertFalse(self.worker.is_alive())
+        self.assertTrue((Path(self.tmp.name)/'automation.json').exists())
+
+    def test_vps_unexpected_browser_close_still_cancels_schedule(self):
+        saved=self.send_payload();FakeBrowser.reply_answers=['replied'];FakeBrowser.scan_status='verified'
+        self.persistent_worker(saved)
+        self.worker.commands.put(('restore',{'channel':'chrome'}))
+        self.wait_event('log',lambda value:'Đã khôi phục lịch tự động' in value)
+        self.wait_event('ready')
+        with patch.object(FakeBrowser,'pump',return_value=False):
+            self.wait_event('status',lambda value:value.get('browser_connected') is False)
+        self.assertFalse((Path(self.tmp.name)/'automation.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

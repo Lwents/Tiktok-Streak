@@ -103,7 +103,11 @@ class Worker(threading.Thread):
                 try:
                     command, payload = self.commands.get(timeout=0.3)
                 except queue.Empty:
+                    if self.closing.is_set():
+                        break
                     if browser is not None and browser.context is not None and not browser.pump():
+                        if self.closing.is_set():
+                            break
                         browser.close()
                         automatic = None
                         resume_payload = None

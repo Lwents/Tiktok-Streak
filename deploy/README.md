@@ -58,6 +58,13 @@ its approved account and chat selection are saved privately in `automation.json`
 After a service restart, sending resumes only after the same account is authenticated
 and the approved chats are verified again. A Stop action or account change disables
 that saved automation. Installing the service does not itself enable sending.
+The service uses `KillMode=mixed`: graceful stop signals the Python worker first,
+letting it close Chrome without treating a service restart as an unexpected browser
+closure that cancels the saved schedule. An unexpected browser close still stops sending.
+
+TikTok's `Sleep hours` reminder can cover the inbox after midnight. The adapter
+uses its visible `Return for now` button before opening chats or sending.
+It leaves sleep-hour settings unchanged; unrecognized gates still block sending.
 
 Cookie migration uses the owner's running Chrome context to export TikTok cookies
 through SSH into a private `session-import.json`. The application deletes this file
