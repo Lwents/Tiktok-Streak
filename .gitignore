@@ -15,6 +15,9 @@ session-import.tmp
 automation.json
 automation.tmp
 .local-test/
+/build/
+/dist/
+/release/
 recovery-state.json
 recovery-state.tmp
 ai-provider.json

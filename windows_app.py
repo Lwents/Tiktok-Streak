@@ -3,6 +3,7 @@
 import ctypes
 import logging
 import os
+import sys
 import threading
 from pathlib import Path
 
@@ -12,6 +13,12 @@ TITLE = 'TikTok Streak'
 PORT = 8765
 ICON = ROOT / 'assets' / 'streak.ico'
 APP_ID = 'Lwents.TikTokStreak'
+
+
+def data_directory():
+    if getattr(sys, 'frozen', False):
+        return Path(os.environ['LOCALAPPDATA']) / TITLE
+    return ROOT
 
 
 def run():
@@ -26,6 +33,8 @@ def run():
     legacy_path = ROOT / 'ai-provider.json'
     if config_path.exists() or not legacy_path.exists():
         os.environ.setdefault('TIKTOK_AI_CONFIG', str(config_path))
+    data_root = data_directory()
+    data_root.mkdir(parents=True, exist_ok=True)
 
     # Claim the local dashboard port before starting the worker. A second
     # launch must not open another Chrome session or run another sender.
@@ -35,7 +44,7 @@ def run():
         raise RuntimeError('Cổng 8765 đang được sử dụng. Hãy đóng phiên TikTok Streak đang mở rồi thử lại.') from error
 
     with server:
-        app = Dashboard(desktop_window=True)
+        app = Dashboard(root=data_root, desktop_window=True)
         server.app = app
         try:
             window = webview.create_window(
@@ -52,7 +61,7 @@ def run():
             server_thread.start()
             try:
                 webview.start(close_window_on_shutdown, gui='edgechromium',
-                              private_mode=False, storage_path=str(ROOT / 'desktop-webview'),
+                              private_mode=False, storage_path=str(data_root / 'desktop-webview'),
                               icon=str(ICON))
             finally:
                 app.worker.stop_sending.set()
@@ -67,7 +76,7 @@ if __name__ == '__main__':
     try:
         run()
     except Exception as error:
-        logging.basicConfig(filename=ROOT / 'windows-app.log', encoding='utf-8')
+        logging.basicConfig(filename=data_directory() / 'windows-app.log', encoding='utf-8')
         logging.exception('Không mở được app Windows')
         message = str(error) if isinstance(error, RuntimeError) else (
             'Không mở được TikTok Streak. Hãy chạy setup.bat và kiểm tra Microsoft Edge WebView2 Runtime.'

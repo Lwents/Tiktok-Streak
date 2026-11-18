@@ -4,6 +4,12 @@ App Windows giữ chuỗi TikTok. Python điều khiển Chrome/Edge, bảng đi
 
 ## Bắt đầu
 
+Mở **`TikTok-Streak-Setup.exe`** để cài app trên Windows 10/11 64-bit, rồi bấm biểu tượng **TikTok Streak** trên Desktop hoặc trong Start Menu. Bộ cài đi kèm Python và sẽ cài WebView2 Runtime nếu cần. Khi dùng trên máy mới, đăng nhập TikTok trong Chrome hoặc Edge và nhập cấu hình AI nếu muốn dùng AI.
+
+Cấu hình của bản cài đặt nằm tại `%LOCALAPPDATA%\TikTok Streak`. Để build lại bộ cài từ mã nguồn, chạy `setup.bat`, cài Inno Setup 6, rồi chạy `packaging\windows\build.ps1` bằng PowerShell. Bộ cài được ghi vào `release\TikTok-Streak-Setup.exe`.
+
+### Chạy trực tiếp từ mã nguồn
+
 1. Cài Python 3.10+ có Python Launcher (`py`), Microsoft Edge WebView2 Runtime và Google Chrome hoặc Microsoft Edge.
 2. Chạy `setup.bat` một lần.
 3. Chạy **`start.bat`** hoặc **`start-windows.bat`** để mở cửa sổ **TikTok Streak** trên máy Windows. Bảng điều khiển chạy trong cửa sổ app bằng WebView2.
