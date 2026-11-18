@@ -45,12 +45,16 @@ class AIClient:
 
     @classmethod
     def from_root(cls, root, opener=None):
-        path = Path(os.environ.get('TIKTOK_AI_CONFIG') or Path(root) / 'ai-provider.json')
+        path = cls.config_path(root)
         try:
             config = read_json(path, {})
         except (OSError, ValueError):
             raise AIError('Chưa đọc được cấu hình AI trên máy chạy tool.') from None
         return cls(config, opener=opener)
+
+    @staticmethod
+    def config_path(root):
+        return Path(os.environ.get('TIKTOK_AI_CONFIG') or Path(root) / 'ai-provider.json')
 
     @classmethod
     def public_status(cls, root):

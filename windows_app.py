@@ -2,7 +2,9 @@
 
 import ctypes
 import logging
+import os
 import threading
+from pathlib import Path
 
 from web_app import Dashboard, ROOT, WebServer
 
@@ -18,6 +20,12 @@ def run():
     set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
     set_app_id.argtypes = [ctypes.c_wchar_p]
     set_app_id(APP_ID)
+
+    local_appdata = Path(os.environ['LOCALAPPDATA'])
+    config_path = local_appdata / TITLE / 'ai-provider.json'
+    legacy_path = ROOT / 'ai-provider.json'
+    if config_path.exists() or not legacy_path.exists():
+        os.environ.setdefault('TIKTOK_AI_CONFIG', str(config_path))
 
     # Claim the local dashboard port before starting the worker. A second
     # launch must not open another Chrome session or run another sender.

@@ -6,7 +6,7 @@ App Windows giữ chuỗi TikTok. Python điều khiển Chrome/Edge, bảng đi
 
 1. Cài Python 3.10+ có Python Launcher (`py`), Microsoft Edge WebView2 Runtime và Google Chrome hoặc Microsoft Edge.
 2. Chạy `setup.bat` một lần.
-3. Chạy **`start-windows.bat`** để mở cửa sổ **TikTok Streak** trên máy Windows. Bảng điều khiển chạy trong cửa sổ app bằng WebView2.
+3. Chạy **`start.bat`** hoặc **`start-windows.bat`** để mở cửa sổ **TikTok Streak** trên máy Windows. Bảng điều khiển chạy trong cửa sổ app bằng WebView2.
 4. Bấm **Kết nối TikTok**, đăng nhập trong cửa sổ Chrome/Edge được tool mở, vào **Tin nhắn**. Chọn trình duyệt ở chân danh sách bạn bè nếu cần đổi sang Edge.
 5. Quay về bảng điều khiển, bấm **Quét danh sách**. Sau khi đọc danh sách, tool tự kiểm tra lịch sử của các cuộc trò chuyện còn hoạt động gần đây; tiến độ hiển thị trong lúc quét.
 6. Tool tự chọn chat có bằng chứng chuỗi; soạn tin rồi bấm **Gửi một lượt** để kiểm tra/gửi một đợt, hoặc **Bật giữ chuỗi** để tự kiểm tra và gửi sau 00:00 mỗi ngày theo giờ của trình duyệt.
@@ -49,7 +49,7 @@ Tool đợi khoảng 5 giây để gom tin nhắn liên tiếp, giới hạn m�
 
 Luồng giữ chuỗi hằng ngày bỏ qua chat đã được chính tài khoản rep trong ngày. Luồng AI chat phản hồi tin văn bản mới dù bạn đã rep trước đó. Nếu chưa tìm được video phù hợp, lượt giữ chuỗi dùng tin nhắn đã soạn làm dự phòng. Khi đã bắt đầu chia sẻ mà kết quả chưa rõ, tool khóa thử lại để tránh gửi thêm tin trùng. Tự khôi phục chuỗi vẫn hoạt động cho các chat đã chọn.
 
-Cấu hình proxy theo mẫu `ai-provider.example.json`. Bản Windows đọc `ai-provider.json` riêng trong thư mục dự án; VPS đọc đường dẫn biến môi trường `TIKTOK_AI_CONFIG`, hiện là `/var/lib/tiktok-streak/ai-provider.json` với quyền 0600. Các file chứa khóa và dữ liệu AI được loại khỏi Git. Nội dung ngữ cảnh của chat được chuyển tới proxy/model đã cấu hình khi bạn bật AI cho chat đó. Nút **Thử trả lời** gửi riêng câu mẫu bạn nhập, không gửi tin vào TikTok.
+Nhập proxy, model và API key trong **Cài đặt gửi → AI và video**. App lưu khóa trong thư mục dữ liệu Windows của người dùng. Khi chỉnh proxy hoặc model, có thể để trống ô API key để giữ khóa đang dùng. Khi chưa có proxy, app vẫn gửi tin nhắn đã soạn và giữ tùy chọn AI đã chọn. Khi bật AI, ngữ cảnh chat được chuyển tới proxy đã cấu hình. Nút **Thử trả lời** chỉ gửi câu mẫu tới proxy.
 
 ## Lưu trữ và xử lý lỗi
 
@@ -75,16 +75,3 @@ Kiểm tra gồm phục hồi phiên Chrome đã đóng, đổi Chrome/Edge, ch�
 ## Khi đăng nhập Google báo “This browser or app may not be secure”
 
 Đây là thông báo Google từ chối phiên đăng nhập. Trên bảng điều khiển, bấm **Đăng nhập bằng QR** để mở cách đăng nhập trực tiếp của TikTok, rồi dùng điện thoại quét mã và xác nhận. Sau khi thành công, vào Tin nhắn rồi Quét danh sách. Tool không thay đổi thiết lập bảo mật của Google.
-
-## VPS đang triển khai
-
-Tool đã được cài riêng tại VPS Ubuntu `160.250.180.133`, thư mục `/opt/tiktok-streak`.
-
-- Bảng điều khiển: **https://160.250.180.133:8443/**.
-- Màn hình Chrome để đăng nhập/xác minh TikTok: **https://160.250.180.133:8443/browser/**, hoặc bấm **Màn hình Chrome** trong menu trái.
-
-Mở trực tiếp các link trên bằng máy tính hoặc điện thoại. Nếu chưa đăng nhập, trang **Đăng nhập** của tool tự xuất hiện; dùng tài khoản web riêng đã cấp. Phiên được nhớ 7 ngày trên trình duyệt. Nút **Đăng xuất** ở góc trên chỉ đăng xuất trang quản lý; tài khoản TikTok và lịch gửi trên VPS vẫn hoạt động. Không cần chạy file `.bat` hay mở SSH. Thông tin truy cập được lưu riêng trên máy Windows tại `C:\Users\Lwent\.ssh\tiktok-streak-web-access.json`; không nằm trong dự án. `start.bat` và `start-vps.bat` chỉ là lối tắt mở link dashboard; `open-browser-vps.bat` mở link Chrome.
-
-Sau khi bấm **Bật giữ chuỗi**, có thể đóng trang và tắt máy cá nhân; VPS tiếp tục chạy theo giờ Việt Nam. **Dừng giữ chuỗi** dừng lịch gửi và vẫn giữ trang quản lý hoạt động. Dịch vụ lưu lựa chọn đã bật trong `automation.json` và chỉ tiếp tục sau khởi động lại khi xác nhận đúng tài khoản cùng các chat đã chọn. Chưa bật lịch thì việc mở trang không tự gửi tin.
-
-`start-vps-ssh.bat` giữ cách kết nối SSH cũ khi cần dùng dự phòng qua `http://127.0.0.1:8765`. `start-windows.bat` chạy riêng bản cục bộ. Hướng dẫn dịch vụ nằm trong `deploy/README.md`.

@@ -1,5 +1,7 @@
 # Ubuntu VPS
 
+The previous hosted installation has been removed. This directory documents the historical deployment. Use the Windows launcher for the current app.
+
 Deployment directory: `/opt/tiktok-streak`. Runtime user: `tiktok-streak`.
 
 Services:

@@ -88,3 +88,25 @@
   .desktop-layout .quick-tools { align-items: flex-start; }
   .desktop-layout .stat-icon { display: none; }
 }
+
+.ai-provider-form {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.ai-provider-form input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 9px;
+  color: var(--ink);
+  background: white;
+  font: inherit;
+}
+.ai-provider-form .button { justify-self: start; margin-top: 4px; }
+.ai-provider-form p:empty { display: none; }

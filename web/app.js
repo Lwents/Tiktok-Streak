@@ -20,6 +20,8 @@ let lastAccountSeen = null;
 let selectionProfile = null;
 let excluded = new Set();
 let aiTesting = false;
+let providerEditing = false;
+let providerSaving = false;
 const desktopScreens = {
   overview: 'Tổng quan', friends: 'Cuộc trò chuyện', composer: 'Cài đặt gửi', activity: 'Nhật ký hoạt động'
 };
@@ -40,6 +42,7 @@ function showDesktopScreen() {
 
 function enableDesktopLayout() {
   document.body.classList.add('desktop-layout');
+  $('ai-provider-form').hidden = false;
   $('desktop-account-slot').append(document.querySelector('.hero-buttons'));
   $('desktop-send-slot').append($('send-controls'));
   $('auto-button').before($('send-button'));
@@ -305,6 +308,17 @@ function updateControls() {
   $('ai-test').disabled = aiTesting || !online || !state.ai?.configured;
   $('video-preview').disabled = busy || !online || !state.ai?.configured || !state.account?.authenticated;
   $('ai-model').textContent = state.ai?.configured ? state.ai.model : 'Chưa cấu hình AI';
+  if (state.runtime?.mode === 'desktop') {
+    for (const id of ['ai-base-url', 'ai-provider-model', 'ai-api-key', 'ai-provider-save']) {
+      $(id).disabled = locked || providerSaving;
+    }
+    if (!providerEditing && !providerSaving) {
+      $('ai-base-url').value = state.ai?.base_url || '';
+      $('ai-provider-model').value = state.ai?.model || '';
+      $('ai-api-key').placeholder = state.ai?.configured ? 'Đã lưu khóa · để trống nếu giữ nguyên' : 'Nhập API key';
+      $('ai-api-key').required = !state.ai?.configured;
+    }
+  }
   for (const id of ['hero-login', 'qr-login', 'empty-login', 'account-refresh']) $(id).disabled = locked;
   $('scan-button').disabled = locked || !s.browser_connected || !state.account?.authenticated;
   const unconfirmed = s.rows_cached || s.account_checking;
@@ -491,4 +505,28 @@ $('ai-test').addEventListener('click',async()=>{
     $('ai-test-output').textContent=result.message;
   } catch(error){$('ai-test-output').textContent=error.message;}
   finally{aiTesting=false;updateControls();}
+});
+$('ai-provider-form').addEventListener('input', () => { providerEditing = true; });
+$('ai-provider-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (providerSaving) return;
+  const result = $('ai-provider-result');
+  const data = {
+    base_url: $('ai-base-url').value,
+    model: $('ai-provider-model').value,
+    api_key: $('ai-api-key').value
+  };
+  providerSaving = true;
+  updateControls();
+  try {
+    state.ai = await api('/api/ai/provider', data);
+    providerEditing = false;
+    $('ai-api-key').value = '';
+    result.textContent = 'Đã lưu cấu hình AI.';
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    providerSaving = false;
+    updateControls();
+  }
 });

@@ -115,6 +115,33 @@ class WebChecks(unittest.TestCase):
         except HTTPError as error:self.assertEqual(error.code,404);error.close()
         else:self.fail('AI config became a public asset')
 
+    def test_desktop_saves_proxy_without_returning_key_and_keeps_blank_key(self):
+        from unittest.mock import patch
+
+        path = Path(self.tmp.name) / 'private' / 'provider.json'
+        config = {'base_url': 'https://proxy.example/v1', 'model': 'test', 'api_key': 'fixture-key'}
+        with patch.dict('os.environ', {'TIKTOK_AI_CONFIG': str(path)}):
+            self.assertEqual(self.request('/api/ai/provider', config)[0], 400)
+            self.app.runtime_mode = 'desktop'
+            self.assertEqual(self.request('/api/ai/provider', config, token=False)[0], 403)
+            status, result = self.request('/api/ai/provider', config)
+            self.assertEqual(status, 200)
+            self.assertEqual(result, {'configured': True, 'base_url': config['base_url'], 'model': 'test'})
+            self.assertEqual(self.request('/api/ai/provider', {**config, 'model': 'changed', 'api_key': ''})[0], 200)
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8'))['api_key'], 'fixture-key')
+            self.assertNotIn('fixture-key', json.dumps(self.app.snapshot()))
+            self.assertTrue(self.app.worker.commands.empty())
+
+    def test_desktop_without_proxy_can_send_text_with_video_preference_saved(self):
+        self.app.runtime_mode = 'desktop'
+        settings = {**self.app.settings, 'ai_enabled': True, 'daily_mode': 'video'}
+        status, _ = self.request('/api/action', {'command': 'send', 'settings': settings, 'target_keys': ['chat-alice']})
+        self.assertEqual(status, 200)
+        command, payload = self.app.worker.commands.get_nowait()
+        self.assertEqual((command, payload['daily_mode'], payload['ai_enabled']), ('send', 'text', False))
+        self.assertEqual(self.app.settings['daily_mode'], 'video')
+        self.assertTrue(self.app.settings['ai_enabled'])
+
     def test_ai_sample_requires_owner_origin_and_does_not_queue_tiktok_send(self):
         from unittest.mock import patch
         with patch('web_app.AIClient.from_root') as factory:

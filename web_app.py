@@ -14,7 +14,7 @@ from urllib.parse import urlparse, parse_qs
 
 from streak import read_json, save_state
 from worker import Worker
-from ai_client import AIClient, DEFAULT_STYLE
+from ai_client import AIClient, AIError, DEFAULT_STYLE
 
 ROOT = Path(__file__).resolve().parent
 
@@ -222,6 +222,35 @@ class Dashboard:
         client = AIClient.from_root(self.root)
         return {'message': client.reply([{'role':'user','content':sample}], settings['ai_style']), 'model': client.model}
 
+    def save_ai_provider(self, data):
+        with self.lock:
+            if self.runtime_mode != 'desktop':
+                raise ValueError('Chỉ cấu hình proxy từ app Windows.')
+            if self.status['busy'] or self.status['automatic']:
+                raise RuntimeError('Dừng tác vụ trước khi đổi cấu hình AI.')
+            config = {}
+            for key, limit in (('base_url', 2048), ('model', 256), ('api_key', 2048)):
+                value = data.get(key, '')
+                if not isinstance(value, str) or len(value) > limit:
+                    raise ValueError('Thông tin proxy, model hoặc API key không hợp lệ.')
+                config[key] = value.strip()
+            if not config['api_key']:
+                try:
+                    config['api_key'] = AIClient.from_root(self.root).api_key
+                except AIError:
+                    raise ValueError('Nhập API key để lưu cấu hình.') from None
+            try:
+                AIClient(config)
+            except AIError as error:
+                raise ValueError(str(error)) from None
+            path = AIClient.config_path(self.root)
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                save_state(path, config)
+            except OSError:
+                raise RuntimeError('Không lưu được cấu hình AI trên máy này.') from None
+            return AIClient.public_status(self.root)
+
     def action(self, data):
         command = data.get('command')
         if command not in ('login', 'account', 'scan', 'send', 'auto', 'stop','video_preview'):
@@ -252,8 +281,12 @@ class Dashboard:
                     raise ValueError('Chọn cách đăng nhập hợp lệ.')
                 payload['login_method'] = method
             if command in ('send', 'auto'):
-                if (settings['ai_enabled'] or settings['daily_mode']=='video') and not AIClient.public_status(self.root)['configured']:
-                    raise ValueError('Chưa cấu hình proxy và API key cho AI trên máy chạy tool.')
+                uses_ai = (command == 'auto' and settings['ai_enabled']) or settings['daily_mode'] == 'video'
+                if uses_ai and not AIClient.public_status(self.root)['configured']:
+                    if self.runtime_mode != 'desktop':
+                        raise ValueError('Chưa cấu hình proxy và API key cho AI trên máy chạy tool.')
+                    payload.update(ai_enabled=False, daily_mode='text')
+                    self.log('Chưa cấu hình AI. Lượt này dùng tin nhắn đã soạn.')
                 if self.status.get('account_checking') or self.status.get('rows_cached'):
                     raise ValueError('Đang xác nhận tài khoản hoặc cập nhật danh sách đã lưu. Chờ quét xong trước khi gửi.')
                 if not self.account or not self.account.get('authenticated'):
@@ -274,7 +307,7 @@ class Dashboard:
                     raise ValueError('Kết nối và quét lại sau khi đổi trình duyệt.')
                 payload['targets'] = [rows[key] for key in dict.fromkeys(keys)]
                 payload['account_username'] = self.account['username']
-                if settings['ai_enabled']:
+                if payload['ai_enabled']:
                     payload['ai_started_at'] = time.time()
                 self.worker.stop_sending.clear()
             elif command in ('login', 'scan'):
@@ -370,6 +403,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.app.action(data)
             elif self.path == '/api/ai/draft':
                 return self.reply(200, self.server.app.ai_draft(data))
+            elif self.path == '/api/ai/provider':
+                return self.reply(200, self.server.app.save_ai_provider(data))
             elif self.path == '/api/settings':
                 self.server.app.save_settings(data)
             elif self.path == '/api/shutdown':
