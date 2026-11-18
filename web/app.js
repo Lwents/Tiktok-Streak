@@ -10,6 +10,8 @@ let dirty = false;
 let stoppingApp = false;
 let toastTimer;
 let saveTimer;
+let saveRequest;
+const desktopDraftKey = 'streak.desktop-settings-draft.v1';
 let renderedRows = '';
 let renderedLogs = '';
 let renderedAccount = '';
@@ -115,7 +117,7 @@ async function api(path, data) {
   const response = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-App-Token': token}, body: JSON.stringify(data)});
   if (response.status === 401) { location.assign('/login'); throw new Error('Phiên đăng nhập đã hết hạn.'); }
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'Không thực hiện được thao tác.');
+  if (!response.ok) throw Object.assign(new Error(result.error || 'Không thực hiện được thao tác.'), {status: response.status});
   return result;
 }
 function updatePreview() {
@@ -125,18 +127,43 @@ function updatePreview() {
   $('interval-preview').textContent = `${$('hours').value || '—'} giờ`;
   if (state) updateControls();
 }
-function scheduleSave() {
+function applySettings(data) {
+  $('message').value = data.message;
+  $('hours').value = data.hours;
+  $('browser-select').value = data.channel;
+  $('auto-restore').checked = data.auto_restore === true;
+  $('ai-enabled').checked = data.ai_enabled === true;
+  $('ai-style').value = data.ai_style ?? 'Viết tự nhiên, thân thiện bằng tiếng Việt, ngắn gọn.';
+  $('daily-mode').value = data.daily_mode || 'text';
+  $('video-query').value = data.video_query ?? 'chuỗi';
+  updatePreview();
+}
+function settingsSaved(data) {
+  if (JSON.stringify(data) !== JSON.stringify(settings())) return;
+  dirty = false;
+  if (state.runtime?.mode === 'desktop') {
+    try { localStorage.removeItem(desktopDraftKey); } catch {}
+  }
+}
+function flushSettings() {
+  if (!dirty || saveRequest || pending || !online || !state || state.status.busy || state.status.automatic) return;
+  const data = settings();
+  if (!Number.isFinite(data.hours) || data.hours < 1 || data.hours > 168 || !data.ai_style.trim() || !data.video_query.trim()) return;
+  saveRequest = api('/api/settings', data).then(() => settingsSaved(data)).catch(error => {
+    if (error.status !== 409) notify(error.message, true);
+  }).finally(() => { saveRequest = null; });
+}
+function scheduleSave(delay = 700) {
   dirty = true;
+  if (state?.runtime?.mode === 'desktop') {
+    // Keep the latest edits even if the window closes before the HTTP save.
+    try { localStorage.setItem(desktopDraftKey, JSON.stringify(settings())); } catch {}
+  }
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    if (!state || pending || state.status.busy || state.status.automatic || !online) return;
-    const data = settings();
-    if (!Number.isFinite(data.hours) || data.hours < 1 || data.hours > 168) return;
-    try {
-      await api('/api/settings', data);
-      if (JSON.stringify(data) === JSON.stringify(settings())) dirty = false;
-    } catch (error) { notify(error.message, true); }
-  }, 700);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    flushSettings();
+  }, delay);
 }
 function filteredRows() {
   const query = $('search').value.trim().toLocaleLowerCase('vi');
@@ -336,28 +363,18 @@ async function poll() {
     lastAccountSeen = accountName;
     online = true;
     $('offline-banner').hidden = true;
+    const desktop = state.runtime?.mode === 'desktop';
     if (!initialized) {
-      if (state.runtime?.mode === 'desktop') enableDesktopLayout();
-      $('message').value = state.settings.message;
-      $('hours').value = state.settings.hours;
-      $('browser-select').value = state.settings.channel;
-      $('auto-restore').checked = state.settings.auto_restore === true;
-      $('ai-enabled').checked = state.settings.ai_enabled === true;
-      $('ai-style').value = state.settings.ai_style || 'Viết tự nhiên, thân thiện bằng tiếng Việt, ngắn gọn.';
-      $('daily-mode').value = state.settings.daily_mode || 'text';
-      $('video-query').value = state.settings.video_query || 'chuỗi';
+      let draft;
+      if (desktop) {
+        enableDesktopLayout();
+        try { draft = JSON.parse(localStorage.getItem(desktopDraftKey)); } catch {}
+        dirty = Boolean(draft);
+      }
+      applySettings({...state.settings, ...draft});
       initialized = true;
-      updatePreview();
-    } else if (!dirty && !pending && document.activeElement !== $('message') && document.activeElement !== $('hours') && document.activeElement !== $('browser-select')) {
-      $('message').value = state.settings.message;
-      $('hours').value = state.settings.hours;
-      $('browser-select').value = state.settings.channel;
-      $('auto-restore').checked = state.settings.auto_restore === true;
-      $('ai-enabled').checked = state.settings.ai_enabled === true;
-      $('ai-style').value = state.settings.ai_style || 'Viết tự nhiên, thân thiện bằng tiếng Việt, ngắn gọn.';
-      $('daily-mode').value = state.settings.daily_mode || 'text';
-      $('video-query').value = state.settings.video_query || 'chuỗi';
-      updatePreview();
+    } else if (!desktop && !dirty && !pending && document.activeElement !== $('message') && document.activeElement !== $('hours') && document.activeElement !== $('browser-select')) {
+      applySettings(state.settings);
     }
     syncSelection();
     if (state.status.scanned_at && state.status.scanned_at !== lastScanSeen) {
@@ -365,6 +382,7 @@ async function poll() {
       if (state.rows.some(eligibleRow)) $('streak-filter').value = 'verified';
     }
     renderAccount(); updateCounts(); renderFriends(); renderActivity(); updateControls(); renderVideo();
+    if (desktop && !saveTimer) flushSettings();
   } catch {
     online = false;
     $('offline-banner').hidden = false;
@@ -378,10 +396,13 @@ async function action(command, method = 'standard') {
   if (!state) { notify('Đang kết nối với ứng dụng, bạn chờ một chút.'); return; }
   pending = true;
   clearTimeout(saveTimer);
+  saveTimer = null;
   updateControls();
   try {
-    await api('/api/action', {command, method, settings: settings(), target_keys: [...selected]});
-    dirty = false;
+    await saveRequest;
+    const data = settings();
+    await api('/api/action', {command, method, settings: data, target_keys: [...selected]});
+    if (!['stop', 'video_preview'].includes(command)) settingsSaved(data);
     if (command === 'stop') {
       state.status.automatic = false;
       notify('Đã yêu cầu dừng. Chờ thao tác hiện tại kết thúc.');
@@ -415,9 +436,9 @@ window.addEventListener('storage', event => {
   loadExclusions(); syncSelection(); renderFriends(); updateCounts(); updateControls();
 });
 for (const id of ['message', 'hours','ai-style','video-query']) $(id).addEventListener('input', () => { updatePreview(); scheduleSave(); });
-for (const id of ['ai-enabled','daily-mode']) $(id).addEventListener('change', () => { updateControls(); scheduleSave(); });
-$('auto-restore').addEventListener('change', () => { syncSelection(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
-$('browser-select').addEventListener('change', () => { selected.clear(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
+for (const id of ['ai-enabled','daily-mode']) $(id).addEventListener('change', () => { updateControls(); scheduleSave(0); });
+$('auto-restore').addEventListener('change', () => { syncSelection(); renderFriends(); updateCounts(); updateControls(); scheduleSave(0); });
+$('browser-select').addEventListener('change', () => { selected.clear(); renderFriends(); updateCounts(); updateControls(); scheduleSave(0); });
 for (const [id, step] of [['hours-minus', -1], ['hours-plus', 1]]) $(id).addEventListener('click', () => {
   $('hours').value = Math.min(168, Math.max(1, (Number($('hours').value) || 20) + step));
   updatePreview(); scheduleSave();

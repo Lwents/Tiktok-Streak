@@ -367,6 +367,42 @@ class WebChecks(unittest.TestCase):
             finally:
                 browser.close()
 
+    def test_desktop_recovers_edits_when_closed_before_server_save(self):
+        from playwright.sync_api import sync_playwright, expect
+
+        self.app.runtime_mode = 'desktop'
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, channel='chrome' if sys.platform == 'win32' else None)
+            try:
+                context = browser.new_context()
+                context.route('**/api/settings', lambda route: route.fulfill(status=409, json={'error': 'Busy'}))
+                page = context.new_page()
+                page.goto(self.url + '/#composer')
+                page.get_by_text('AI và video', exact=True).click()
+                page.locator('#ai-enabled').check()
+                page.locator('#daily-mode').select_option('video')
+                page.locator('#auto-restore').check()
+                page.locator('#message').fill('Tin nhắn đã chỉnh')
+                page.close()
+                self.assertFalse(self.app.settings['ai_enabled'])
+
+                context.unroute('**/api/settings')
+                reopened = context.new_page()
+                reopened.goto(self.url + '/#composer')
+                reopened.get_by_text('AI và video', exact=True).click()
+                expect(reopened.locator('#ai-enabled')).to_be_checked()
+                expect(reopened.locator('#daily-mode')).to_have_value('video')
+                expect(reopened.locator('#auto-restore')).to_be_checked()
+                expect(reopened.locator('#message')).to_have_value('Tin nhắn đã chỉnh')
+                reopened.wait_for_function("localStorage.getItem('streak.desktop-settings-draft.v1') === null")
+                saved = json.loads((Path(self.tmp.name) / 'desktop-settings.json').read_text(encoding='utf-8'))
+                self.assertTrue(saved['ai_enabled'] and saved['auto_restore'])
+                self.assertEqual(saved['daily_mode'], 'video')
+                self.assertEqual(saved['message'], 'Tin nhắn đã chỉnh')
+                self.assertTrue(self.app.worker.commands.empty())
+            finally:
+                browser.close()
+
     def test_chats_are_selected_by_default_but_no_messages_start(self):
         from playwright.sync_api import sync_playwright, expect
         self.app.rows.append({'key':'unknown','name':'Unverified','badge':'','streak_status':'unknown'})

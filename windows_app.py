@@ -8,10 +8,16 @@ from web_app import Dashboard, ROOT, WebServer
 
 TITLE = 'TikTok Streak'
 PORT = 8765
+ICON = ROOT / 'assets' / 'streak.ico'
+APP_ID = 'Lwents.TikTokStreak'
 
 
 def run():
     import webview
+
+    set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
+    set_app_id.argtypes = [ctypes.c_wchar_p]
+    set_app_id(APP_ID)
 
     # Claim the local dashboard port before starting the worker. A second
     # launch must not open another Chrome session or run another sender.
@@ -38,7 +44,8 @@ def run():
             server_thread.start()
             try:
                 webview.start(close_window_on_shutdown, gui='edgechromium',
-                              private_mode=False, storage_path=str(ROOT / 'desktop-webview'))
+                              private_mode=False, storage_path=str(ROOT / 'desktop-webview'),
+                              icon=str(ICON))
             finally:
                 app.worker.stop_sending.set()
                 app.worker.closing.set()
