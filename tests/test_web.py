@@ -105,6 +105,36 @@ class WebChecks(unittest.TestCase):
     def test_restore_setting_requires_boolean(self):
         self.assertEqual(self.request('/api/settings',{'auto_restore':'true'})[0],400)
 
+    def test_ai_provider_key_is_never_exposed_in_snapshot(self):
+        (Path(self.tmp.name)/'ai-provider.json').write_text(json.dumps({'base_url':'https://ai.example/v1','model':'fixture-model','api_key':'fixture-provider-secret'}))
+        with urlopen(self.url+'/api/state?v=2') as response:body=json.loads(response.read())
+        self.assertTrue(body['ai']['configured'])
+        self.assertEqual(body['ai']['model'],'fixture-model')
+        self.assertNotIn('fixture-provider-secret',json.dumps(body))
+        try:urlopen(self.url+'/ai-provider.json')
+        except HTTPError as error:self.assertEqual(error.code,404);error.close()
+        else:self.fail('AI config became a public asset')
+
+    def test_ai_sample_requires_owner_origin_and_does_not_queue_tiktok_send(self):
+        from unittest.mock import patch
+        with patch('web_app.AIClient.from_root') as factory:
+            factory.return_value.reply.return_value='Chào bạn nè!';factory.return_value.model='fixture-model'
+            self.assertEqual(self.request('/api/ai/draft',{'sample':'Xin chào'},origin='https://foreign.example')[0],403)
+            factory.assert_not_called()
+            status,body=self.request('/api/ai/draft',{'sample':'Xin chào'})
+            self.assertEqual(status,200);self.assertEqual(body['message'],'Chào bạn nè!')
+            self.assertTrue(self.app.worker.commands.empty())
+
+    def test_video_preview_does_not_stop_or_reconfigure_running_job(self):
+        from unittest.mock import patch
+        self.app.status['automatic']=True
+        before=dict(self.app.settings)
+        with patch('web_app.AIClient.public_status',return_value={'configured':True}):
+            self.assertEqual(self.request('/api/action',{'command':'video_preview'})[0],200)
+        command,payload=self.app.worker.commands.get_nowait()
+        self.assertEqual(command,'video_preview');self.assertTrue(self.app.status['automatic'])
+        self.assertFalse(self.app.worker.stop_sending.is_set());self.assertEqual(self.app.settings,before)
+
     def test_recovery_filter_and_selection_need_the_restore_option(self):
         from playwright.sync_api import sync_playwright,expect
         self.app.rows[0].update(streak_status='unknown',conversation_id='one',

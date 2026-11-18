@@ -16,6 +16,13 @@ automation.tmp
 .local-test/
 recovery-state.json
 recovery-state.tmp
+ai-provider.json
+ai-drafts.json
+ai-drafts.tmp
+ai-replies.json
+ai-replies.tmp
+video-state.json
+video-state.tmp
 web-auth.json
 web-sessions.sqlite3*
 *.htpasswd

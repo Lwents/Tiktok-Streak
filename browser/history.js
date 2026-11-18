@@ -1,5 +1,5 @@
 /* Read-only access to the TikTok client's existing SDK. Never calls send/mark-read. */
-async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recoveryContext = false}) => {
+async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recoveryContext = false, replyScan = false, allowedIds = [], chatContext = false}) => {
   const row = document.querySelector('[data-e2e="dm-new-conversation-item"]');
   if (!row) return {error: 'chat_list_missing'};
   let fiber = row[Object.keys(row).find(key => key.startsWith('__reactFiber$'))];
@@ -22,6 +22,21 @@ async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recove
     return `${parts.year}-${parts.month}-${parts.day}`;
   };
   const checkedAt=Date.now()/1000;
+  if (replyScan) {
+    const allowed=new Set(allowedIds),self=String(sdk.ctx.option.userId),candidates=[];
+    for(const c of convs) {
+      if(!allowed.has(c.id)||c.isStrangerConversation||(c.isGroupChat&&c.isMember===false))continue;
+      const peer=String(c.toParticipantUserId);
+      const messages=c.getMessageList(()=>true).filter(m=>m.type!==1&&m.type<100000&&m.serverId&&String(m.serverId)!=='0'&&m.visible&&!m.isRecalled)
+        .sort((a,b)=>Number(new Date(b.createdAt))-Number(new Date(a.createdAt))||String(b.serverId).length-String(a.serverId).length||String(b.serverId).localeCompare(String(a.serverId)));
+      const m=messages[0];if(!m)continue;
+      const sender=String(m.sender),at=Number(new Date(m.createdAt))/1000;
+      if(sender===self||(!c.isGroupChat&&sender!==peer)||![7,10001].includes(m.type)||!Number.isFinite(at))continue;
+      if(c.getMessageList(()=>true).some(x=>String(x.sender)===self&&!x.isRecalled&&(!x.serverId||String(x.serverId)==='0')&&x.flightStatus>=0&&x.flightStatus<3&&Number(new Date(x.createdAt))/1000>=at))continue;
+      candidates.push({conversation_id:c.id,id:String(m.serverId),at,is_group:Boolean(c.isGroupChat)});
+    }
+    return {checked_at:checkedAt,candidates};
+  }
   if (!conversationId) return {
     timezone,today:dayOf(checkedAt),checked_at:checkedAt,
     conversations:convs.filter(conv=>(conv.isSingleChat || (conv.isGroupChat && conv.isMember !== false)) && !conv.isStrangerConversation).map(conv=>{
@@ -47,7 +62,7 @@ async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recove
       let text=message.content;
       try { const parsed=JSON.parse(text); text=parsed.text ?? parsed.content ?? text; } catch {}
       if(text!==sentText)continue;
-      matches.push({id:String(message.clientId||message.serverId||''),server_id:Boolean(message.serverId),
+      matches.push({id:String(message.clientId||message.serverId||''),server_id:Boolean(message.serverId)&&String(message.serverId)!=='0',
         state:Number.isFinite(message.flightStatus)?message.flightStatus:null,
         response_status:message.ext?.['s:send_response_status']??null});
     }
@@ -80,10 +95,20 @@ async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recove
       const value=Number(message.create_time);
       const at=value>1e12?value/1000:value;
       const sender=String(message.sender);
+      let text;
+      if(chatContext) {
+        text='[Tệp đính kèm]';
+        if([7,10001].includes(message.message_type)) {
+          text=message.content||'';
+          try { const parsed=JSON.parse(text);text=parsed.text??parsed.content??''; } catch {}
+          text=typeof text==='string'?text.slice(0,700):'';
+        }
+      }
       return {id:String(message.server_message_id||''),type:message.message_type,at,
         sender_id:sender,direction:directionOf(sender),
         scene:message.message_type===1?message.scene||'':'',
-        valid:message.status===0 && String(message.server_message_id||'0')!=='0' && message.ext?.['s:is_recalled']!=='1'};
+        valid:message.status===0 && String(message.server_message_id||'0')!=='0' && message.ext?.['s:is_recalled']!=='1',
+        ...(chatContext?{text}:{} )};
     });
   }
   const finishedAt=Date.now()/1000;

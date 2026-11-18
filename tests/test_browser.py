@@ -254,6 +254,52 @@ class BrowserChecks(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'từ chối'):
             self.adapter.send('Keep the streak')
 
+    def video_share_fixture(self, group=False, success=True, server_id='999'):
+        self.fixture()
+        self.page.set_content('<a data-e2e="nav-profile" href="/@owner">Me</a><div data-e2e="dm-new-conversation-item" data-conv-id="one" aria-selected="true"></div>')
+        self.page.evaluate('''options=>{
+          window.sentVideos=[];window.createdVideos=[];
+          const conv={id:'one',isSingleChat:!options.group,isGroupChat:options.group,isMember:true,isStrangerConversation:false};
+          const sdk={ctx:{option:{userId:'10'}},getConversationList:()=>[conv],
+            createMessage:async args=>{window.createdVideos.push({cid:args.conversation.id,type:args.type,content:JSON.parse(args.content)});return{serverId:'0'}},
+            sendMessage:async()=>{window.sentVideos.push(true);return{success:options.success,serverMessageId:options.server_id}}};
+          document.querySelector('[data-conv-id]')['__reactFiber$fixture']={memoizedState:{memoizedState:{current:{instance:sdk,stateStore:{}}}}};
+        }''',{'group':group,'success':success,'server_id':server_id})
+        return {'conversationId':'one','expectedSelfId':'10','expectedUsername':'owner',
+                'video':{'id':'7000000000000000001','author_id':'42','caption':'fixture'}}
+
+    def test_native_video_share_preserves_type_and_group_recipient(self):
+        source=(Path(__file__).resolve().parents[1]/'browser'/'share_video.js').read_text()
+        for group in (False,True):
+            args=self.video_share_fixture(group=group)
+            self.assertTrue(self.page.evaluate(source,{**args,'dryRun':True})['ready'])
+            self.assertFalse(self.page.evaluate('window.createdVideos.length'))
+            self.assertTrue(self.page.evaluate(source,args)['sent'])
+            created=self.page.evaluate('window.createdVideos[0]')
+            self.assertEqual(created['cid'],'one');self.assertEqual(created['type'],8)
+            self.assertEqual(created['content']['itemId'],args['video']['id'])
+
+    def test_video_share_rejects_changed_owner_and_zero_ack(self):
+        source=(Path(__file__).resolve().parents[1]/'browser'/'share_video.js').read_text()
+        args=self.video_share_fixture()
+        self.assertEqual(self.page.evaluate(source,{**args,'expectedUsername':'other'})['error'],'account_mismatch')
+        self.assertFalse(self.page.evaluate('window.sentVideos.length'))
+        args=self.video_share_fixture(server_id='0')
+        self.assertEqual(self.page.evaluate(source,args)['error'],'video_not_confirmed')
+
+    def test_metadata_reader_does_not_copy_chat_text_without_context_flag(self):
+        self.page.set_content('<div data-e2e="dm-new-conversation-item" data-conv-id="one"></div>')
+        self.page.evaluate('''()=>{
+          class Long {static fromString(){return new Long()}static fromNumber(){return new Long()}add(){return this}toString(){return'10'}}
+          const messages=[{server_message_id:'12',message_type:7,create_time:Date.now()/1000-10,sender:'20',status:0,content:JSON.stringify({text:'fixture-private-chat'})}];
+          const c={id:'one',isSingleChat:true,shortId:'1',toParticipantUserId:'20',firstMessageIndex:new Long(),lastMessageIndex:new Long()};
+          const sdk={getConversationList:()=>[c],ctx:{option:{userId:'10'},resolve:()=>({GetMessagesByConversation:async()=>({status_code:0,body:{messages_in_conversation_body:{messages,has_more:false}}})})}};
+          document.querySelector('[data-conv-id]')['__reactFiber$fixture']={memoizedState:{memoizedState:{current:{instance:sdk,stateStore:{}}}}};
+        }''')
+        source=(Path(__file__).resolve().parents[1]/'browser'/'history.js').read_text()
+        self.assertNotIn('text',self.page.evaluate(source,{'conversationId':'one'})['messages'][0])
+        self.assertEqual(self.page.evaluate(source,{'conversationId':'one','chatContext':True})['messages'][0]['text'],'fixture-private-chat')
+
     def test_reply_check_paginates_to_manual_reply_before_deciding(self):
         now=time.time();today=date.today().isoformat()
         base={'today':today,'timezone':'Asia/Bangkok','checked_at':now,'has_more':True}

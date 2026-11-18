@@ -8,6 +8,9 @@ from tiktok_browser import TikTokBrowser
 from profile_lock import BrowserProfileLock
 from account_state import AccountState
 from daily_schedule import next_check_delay
+from ai_client import AIClient, AIError, DEFAULT_STYLE
+from ai_reply import AIReplies
+from video_streak import VideoSelector
 
 ROOT = Path(__file__).resolve().parent
 
@@ -42,6 +45,9 @@ class Worker(threading.Thread):
         browser = None
         automatic = None
         next_run = 0
+        next_ai_run = 0
+        ai_replies = AIReplies(self.root, self.emit)
+        videos = VideoSelector(self.root)
         profile_lock = BrowserProfileLock(self.root / '.running.lock')
         account = None
         next_account_check = 0
@@ -57,6 +63,7 @@ class Worker(threading.Thread):
                     or not isinstance(resume_payload.get('message'), str)
                     or not resume_payload.get('message', '').strip()
                     or not isinstance(resume_payload.get('auto_restore', False), bool)
+                    or not isinstance(resume_payload.get('ai_enabled', False), bool)
                     or len(resume_payload.get('message', '')) > 500
                     or any(not isinstance(target, dict) or not isinstance(target.get('key'), str)
                            for target in resume_payload.get('targets', []))
@@ -128,6 +135,9 @@ class Worker(threading.Thread):
                     elif automatic and not account_state.checking and time.monotonic() >= next_run:
                         command, payload = 'send', automatic
                         next_run = time.monotonic() + 60
+                    elif automatic and automatic.get('ai_enabled') is True and not account_state.checking and time.monotonic() >= next_ai_run:
+                        command, payload = 'ai_reply', automatic
+                        next_ai_run = time.monotonic() + 15
                     else:
                         continue
                 if command == 'stop':
@@ -138,7 +148,8 @@ class Worker(threading.Thread):
                     self.emit('log', 'Đã dừng tự động.')
                     continue
                 try:
-                    self.emit('status', {'busy': True, 'operation': command})
+                    if command != 'ai_reply':
+                        self.emit('status', {'busy': True, 'operation': command})
                     if browser is None:
                         profile_lock.acquire(timeout=10 if command == 'restore' else 0,
                                              cancel=self.closing)
@@ -197,6 +208,25 @@ class Worker(threading.Thread):
                             else:
                                 self.forget_automation()
                                 self.emit('log', 'Lịch đã lưu thuộc tài khoản hoặc trình duyệt khác; không tự bật gửi.')
+                    elif command == 'video_preview':
+                        current=refresh_account(force=True)
+                        if not current or current.get('username')!=payload['account_username']:
+                            raise RuntimeError('Chưa xác nhận đúng tài khoản để chọn video.')
+                        try:
+                            video=videos.select(browser,current['username'],browser.day_clock(),payload.get('video_query','chuỗi'),stop=self.closing)
+                            self.emit('selected_video',video)
+                            self.emit('log','AI đã chọn video giữ chuỗi: '+video.get('reason',''))
+                        except Exception as exc:
+                            self.emit('log','Chưa chọn được video: '+str(exc).splitlines()[0])
+                    elif command == 'ai_reply':
+                        def same_account():
+                            current = refresh_account(force=True)
+                            return bool(current and current.get('authenticated') and current.get('username') == payload['account_username'])
+                        try:
+                            ai_replies.process(browser, payload, same_account,
+                                lambda: self.closing.is_set() or self.stop_sending.is_set())
+                        except Exception as exc:
+                            self.emit('log', f'Chưa kiểm tra được tin mới cho AI: {str(exc).splitlines()[0]}')
                     elif command in ('send', 'auto'):
                         current_account = refresh_account(force=True)
                         if not current_account or not current_account.get('authenticated'):
@@ -206,6 +236,8 @@ class Worker(threading.Thread):
                         if command == 'auto':
                             if self.stop_sending.is_set():
                                 raise RuntimeError('Đã hủy yêu cầu bật tự động.')
+                            if payload.get('ai_enabled') is True:
+                                payload.setdefault('ai_started_at', time.time())
                             automatic = payload
                             self.remember_automation(payload)
                             self.emit('status', {'automatic': True})
@@ -260,8 +292,25 @@ class Worker(threading.Thread):
                                 if reply['status'] != 'needed':
                                     self.emit('log', f"Bỏ qua {target['name']}: chưa đọc đủ lịch sử hôm nay để tránh gửi trùng.")
                                     continue
+                                message = payload['message']
+                                video = None
+                                if payload.get('daily_mode') == 'video':
+                                    try:
+                                        video = videos.select(browser,current_account['username'],browser.day_clock(),
+                                            payload.get('video_query','chuỗi'),stop=self.closing)
+                                        self.emit('selected_video',video)
+                                    except Exception as exc:
+                                        self.emit('log','Chưa chọn được video phù hợp; dùng tin nhắn dự phòng. '+str(exc).splitlines()[0])
+                                if self.stop_sending.is_set() or self.closing.is_set():
+                                    break
                                 # Navigate and recheck identity/streak before recording an attempt.
                                 browser.prepare(target)
+                                if video:
+                                    try:
+                                        browser.send_video(video,dry_run=True,expected_username=current_account['username'])
+                                    except Exception:
+                                        self.emit('log',f"Chưa chuẩn bị được chia sẻ video cho {target['name']}; dùng tin nhắn dự phòng.")
+                                        video=None
                                 active_account = refresh_account(force=True)
                                 if not active_account or active_account.get('username') != current_account['username']:
                                     raise RuntimeError('Phiên tài khoản đã thay đổi; dừng gửi và quét lại danh sách.')
@@ -278,7 +327,10 @@ class Worker(threading.Thread):
                                 state[key] = {'status': 'pending', 'attempt_at': time.time(), 'name': target['name']}
                                 save_state(state_path, state)
                                 attempted = True
-                                browser.send(payload['message'])
+                                if video:
+                                    browser.send_video(video,expected_username=current_account['username'])
+                                else:
+                                    browser.send(message)
                                 state[key] = {'status': 'sent', 'sent_at': time.time(), 'name': target['name']}
                                 save_state(state_path, state)
                                 self.emit('log', f"Đã thấy tin nhắn mới trong chat: {target['name']}.")

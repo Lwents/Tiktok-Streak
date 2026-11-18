@@ -14,6 +14,7 @@ Environment=DISPLAY=:99
 Environment=XAUTHORITY=/var/lib/tiktok-streak/.Xauthority
 Environment=TZ=Asia/Ho_Chi_Minh
 Environment=PYTHONUNBUFFERED=1
+Environment=TIKTOK_AI_CONFIG=/var/lib/tiktok-streak/ai-provider.json
 UMask=0077
 ExecStartPre=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/deploy/wait_display.py
 ExecStart=/opt/tiktok-streak/.venv/bin/python /opt/tiktok-streak/web_app.py --persist-automation --public-origin https://160.250.180.133:8443

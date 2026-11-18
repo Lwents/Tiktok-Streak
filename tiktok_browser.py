@@ -155,6 +155,27 @@ class TikTokBrowser:
     def day_clock(self):
         return self.page.evaluate(DAY_CLOCK_JS)
 
+    def reply_candidates(self, targets):
+        source = (Path(__file__).parent / 'browser' / 'history.js').read_text(encoding='utf-8')
+        snapshot = self.page.evaluate(source, {'replyScan': True,
+            'allowedIds': [target['conversation_id'] for target in targets if target.get('conversation_id')]})
+        if snapshot.get('error'):
+            raise RuntimeError('Chưa đọc được tin mới từ TikTok.')
+        return snapshot.get('candidates', [])
+
+    def chat_context(self, conversation_id):
+        from streak_history import USER_TYPES
+        source = (Path(__file__).parent / 'browser' / 'history.js').read_text(encoding='utf-8')
+        snapshot = self.page.evaluate(source, {'conversationId': conversation_id, 'chatContext': True, 'limit': 50})
+        if snapshot.get('error'):
+            raise RuntimeError('Chưa đọc được ngữ cảnh cuộc trò chuyện.')
+        messages = [message for message in snapshot.get('messages', []) if message.get('valid')
+                    and message.get('type') in USER_TYPES and message.get('direction') in ('self', 'peer')]
+        messages.sort(key=lambda message: (message['at'], len(message['id']), message['id']))
+        return {'messages': [{'id': message['id'], 'at': message['at'],
+                 'role': 'assistant' if message['direction'] == 'self' else 'user', 'content': message.get('text', '')}
+                 for message in messages[-12:]], 'day': snapshot['today'], 'timezone': snapshot['timezone']}
+
     def login(self, qr=False):
         from playwright.sync_api import Error
         from urllib.parse import urlparse
@@ -185,9 +206,9 @@ class TikTokBrowser:
         self.page.locator(self.row_selector).first.wait_for(state='visible', timeout=20000)
         self.dismiss_sleep_reminder()
 
-    def dismiss_sleep_reminder(self):
+    def dismiss_sleep_reminder(self, page=None):
         """Use TikTok's temporary return button without changing reminder settings."""
-        reminder = self.page.locator('[class*="SleepHoursContainer"]:visible')
+        reminder = (page or self.page).locator('[class*="SleepHoursContainer"]:visible')
         if not reminder.count():
             return False
         button = reminder.get_by_role('button', name=re.compile(r'^Return for now$', re.I))
@@ -456,6 +477,22 @@ class TikTokBrowser:
                 return
             self.page.wait_for_timeout(300)
         raise RuntimeError('Chưa xác nhận được tin mới đã gửi thành công. Kiểm tra chat trước khi thử lại.')
+
+    def send_video(self, video, dry_run=False, expected_username=None):
+        if not self.active_target or not self.active_target.get('conversation_id'):
+            raise RuntimeError('Chưa xác nhận người nhận video.')
+        source=(Path(__file__).parent/'browser'/'history.js').read_text(encoding='utf-8')
+        context=self.page.evaluate(source,{'conversationId':self.active_target['conversation_id'],'recoveryContext':True})
+        if not context.get('self_id'):raise RuntimeError('Chưa xác nhận tài khoản chia sẻ video.')
+        account=self.read_account()
+        if not account or not account.get('authenticated') or (expected_username and account['username']!=expected_username):
+            raise RuntimeError('Tài khoản đã thay đổi trước khi chia sẻ video.')
+        script=(Path(__file__).parent/'browser'/'share_video.js').read_text(encoding='utf-8')
+        result=self.page.evaluate(script,{'conversationId':self.active_target['conversation_id'],
+            'expectedSelfId':context['self_id'],'expectedUsername':expected_username or account['username'],'video':video,'dryRun':dry_run})
+        if not result.get('ready' if dry_run else 'sent'):
+            raise RuntimeError('Chưa xác nhận chia sẻ video thành công: '+str(result.get('error','unknown')))
+        return result
 
     def close(self):
         context, playwright = self.context, self.playwright

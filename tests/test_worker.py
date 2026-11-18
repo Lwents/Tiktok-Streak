@@ -30,6 +30,8 @@ class FakeBrowser:
     reply_conversations = []
     recovery_calls = 0
     recovery_result = None
+    shared_videos = 0
+    video_send_failure = False
     def __init__(self, root, inspect=False):
         self.context = None
     def ensure_open(self, channel):
@@ -57,6 +59,11 @@ class FakeBrowser:
                 'valid_until':type(self).midnight_override or time.time()+3600}
     def send(self, message):
         type(self).sent += 1
+    def send_video(self, video, dry_run=False, expected_username=None):
+        if dry_run:return {'ready':True}
+        type(self).shared_videos+=1
+        if type(self).video_send_failure:raise TimeoutError('unknown video ACK')
+        return {'sent':True}
     def restore_streak(self, target, expected_username, stop=None):
         type(self).recovery_calls += 1
         return type(self).recovery_result or {'status':'not_needed','evidence':{'status':'history_confirmed','days_lower_bound':7}}
@@ -87,6 +94,8 @@ class WorkerChecks(unittest.TestCase):
         FakeBrowser.reply_conversations = []
         FakeBrowser.recovery_calls = 0
         FakeBrowser.recovery_result = None
+        FakeBrowser.shared_videos = 0
+        FakeBrowser.video_send_failure = False
         self.tmp = tempfile.TemporaryDirectory()
         self.events = queue.Queue()
         self.patch = patch('worker.TikTokBrowser', FakeBrowser)
@@ -413,6 +422,20 @@ class WorkerChecks(unittest.TestCase):
         self.worker.commands.put(('auto',payload))
         self.wait_event('ready')
         self.assertEqual(FakeBrowser.recovery_calls,0)
+
+    def test_video_mode_shares_native_video_without_a_text_duplicate(self):
+        payload=self.send_payload();payload['daily_mode']='video'
+        with patch('worker.VideoSelector.select',return_value={'id':'7000000000000000001'}):
+            self.worker.commands.put(('send',payload));self.wait_event('sent');self.worker.stop_sending.set();self.wait_event('ready')
+        self.assertEqual(FakeBrowser.shared_videos,1);self.assertEqual(FakeBrowser.sent,0)
+
+    def test_video_timeout_stays_pending_without_sending_fallback_text(self):
+        payload=self.send_payload();payload['daily_mode']='video';FakeBrowser.video_send_failure=True
+        with patch('worker.VideoSelector.select',return_value={'id':'7000000000000000001'}):
+            self.worker.commands.put(('send',payload));self.wait_event('ready')
+        self.assertEqual(FakeBrowser.shared_videos,1);self.assertEqual(FakeBrowser.sent,0)
+        record=json.loads((Path(self.tmp.name)/'state.json').read_text())['gui:owner:conv:one']
+        self.assertEqual(record['status'],'pending')
 
     def test_resume_retains_only_previously_approved_ended_chat_for_restore(self):
         saved=self.send_payload();saved['auto_restore']=True;FakeBrowser.reply_answers=['replied']

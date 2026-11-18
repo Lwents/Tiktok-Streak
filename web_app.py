@@ -14,6 +14,7 @@ from urllib.parse import urlparse, parse_qs
 
 from streak import read_json, save_state
 from worker import Worker
+from ai_client import AIClient, DEFAULT_STYLE
 
 ROOT = Path(__file__).resolve().parent
 
@@ -50,6 +51,7 @@ class Dashboard:
                        'channel': self.settings['channel'], 'scanned_at': None, 'total': None, 'sent': 0,
                        'rows_cached': False, 'account_checking': False, 'schedule': 'daily_midnight'}
         self.stopped = threading.Event()
+        self.selected_video = None
         worker_args = {'root': self.root}
         if persist_automation:
             worker_args['persist_automation'] = True
@@ -65,6 +67,8 @@ class Dashboard:
 
     @staticmethod
     def validate_settings(data):
+        if not isinstance(data, dict):
+            raise ValueError('Cấu hình phải là một đối tượng hợp lệ.')
         message = data.get('message', 'Giữ chuỗi nha 🔥')
         if not isinstance(message, str) or len(message) > 500:
             raise ValueError('Nội dung tin nhắn tối đa 500 ký tự.')
@@ -83,7 +87,16 @@ class Dashboard:
         auto_restore = data.get('auto_restore', False)
         if not isinstance(auto_restore, bool):
             raise ValueError('Tùy chọn khôi phục chuỗi phải là bật hoặc tắt.')
-        return {'message': message, 'hours': hours, 'channel': channel, 'auto_restore': auto_restore}
+        ai_enabled = data.get('ai_enabled', False)
+        ai_style = data.get('ai_style', DEFAULT_STYLE)
+        if not isinstance(ai_enabled, bool) or not isinstance(ai_style, str) or not ai_style.strip() or len(ai_style) > 500:
+            raise ValueError('Tùy chọn AI phải là bật/tắt và phong cách từ 1 đến 500 ký tự.')
+        daily_mode = data.get('daily_mode', 'text')
+        video_query = data.get('video_query', 'chuỗi')
+        if daily_mode not in ('text','video') or not isinstance(video_query,str) or not video_query.strip() or len(video_query)>100:
+            raise ValueError('Chọn tin nhắn hoặc video và nhập từ khóa video từ 1 đến 100 ký tự.')
+        return {'message': message, 'hours': hours, 'channel': channel, 'auto_restore': auto_restore,
+                'ai_enabled': ai_enabled, 'ai_style': ai_style, 'daily_mode': daily_mode, 'video_query': video_query}
 
     def log(self, text):
         with self.lock:
@@ -113,6 +126,11 @@ class Dashboard:
                     self.save_conversations()
                 elif kind == 'sent':
                     self.status['sent'] += 1
+                elif kind == 'ai_sent':
+                    self.status['sent'] += 1
+                    self.status['ai_sent'] = self.status.get('ai_sent', 0) + 1
+                elif kind == 'selected_video':
+                    self.selected_video = dict(value)
                 elif kind == 'reply':
                     if value.get('account_username') == (self.account or {}).get('username'):
                         for row in self.rows:
@@ -141,6 +159,7 @@ class Dashboard:
                     self.account = value
                     if previous and (value or {}).get('username') != previous:
                         self.rows = []
+                        self.selected_video = None
                         self.status.update(scanned_at=None, total=None, rows_cached=False)
                     if value and value.get('authenticated') and value.get('username') != previous:
                         self.restore_conversations(value['username'])
@@ -179,6 +198,8 @@ class Dashboard:
         with self.lock:
             return {'revision': self.revision, 'status': dict(self.status), 'settings': dict(self.settings),
                     'runtime': {'platform': sys.platform, 'mode': 'vps' if self.server_mode else 'local'},
+                    'ai': AIClient.public_status(self.root),
+                    'video': self.selected_video,
                     'account': dict(self.account) if self.account else None,
                     'rows': [dict(row) for row in self.rows], 'logs': list(self.logs)}
 
@@ -191,9 +212,17 @@ class Dashboard:
             self.settings = settings
             self.revision += 1
 
+    def ai_draft(self, data):
+        settings = self.validate_settings(data.get('settings', self.settings))
+        sample = data.get('sample', 'Hôm nay bạn thế nào?')
+        if not isinstance(sample, str) or not sample.strip() or len(sample) > 700:
+            raise ValueError('Tin nhắn thử phải có từ 1 đến 700 ký tự.')
+        client = AIClient.from_root(self.root)
+        return {'message': client.reply([{'role':'user','content':sample}], settings['ai_style']), 'model': client.model}
+
     def action(self, data):
         command = data.get('command')
-        if command not in ('login', 'account', 'scan', 'send', 'auto', 'stop'):
+        if command not in ('login', 'account', 'scan', 'send', 'auto', 'stop','video_preview'):
             raise ValueError('Thao tác không hợp lệ.')
         with self.lock:
             if command == 'stop':
@@ -204,16 +233,25 @@ class Dashboard:
                 self.status['automatic'] = False
                 self.log('Đã yêu cầu dừng. Thao tác đang thực hiện sẽ kết thúc trước.')
                 return
-            if self.status['busy'] or self.status['automatic']:
+            if self.status['busy'] or (self.status['automatic'] and command != 'video_preview'):
                 raise RuntimeError('Một tác vụ đang chạy. Bấm Dừng hoặc chờ hoàn tất.')
             settings = self.validate_settings(data.get('settings', self.settings))
             payload = dict(settings)
+            if command == 'video_preview':
+                if not self.account or not self.account.get('authenticated') or not self.status['browser_connected'] or settings['channel']!=self.status['channel'] or not AIClient.public_status(self.root)['configured']:
+                    raise ValueError('Kết nối TikTok và cấu hình AI trước khi chọn video.')
+                payload['account_username'] = self.account['username']
+                self.status.update(busy=True,operation=command)
+                self.worker.commands.put((command,payload))
+                return
             if command == 'login':
                 method = data.get('method', 'standard')
                 if method not in ('standard', 'qr'):
                     raise ValueError('Chọn cách đăng nhập hợp lệ.')
                 payload['login_method'] = method
             if command in ('send', 'auto'):
+                if (settings['ai_enabled'] or settings['daily_mode']=='video') and not AIClient.public_status(self.root)['configured']:
+                    raise ValueError('Chưa cấu hình proxy và API key cho AI trên máy chạy tool.')
                 if self.status.get('account_checking') or self.status.get('rows_cached'):
                     raise ValueError('Đang xác nhận tài khoản hoặc cập nhật danh sách đã lưu. Chờ quét xong trước khi gửi.')
                 if not self.account or not self.account.get('authenticated'):
@@ -234,6 +272,8 @@ class Dashboard:
                     raise ValueError('Kết nối và quét lại sau khi đổi trình duyệt.')
                 payload['targets'] = [rows[key] for key in dict.fromkeys(keys)]
                 payload['account_username'] = self.account['username']
+                if settings['ai_enabled']:
+                    payload['ai_started_at'] = time.time()
                 self.worker.stop_sending.clear()
             elif command in ('login', 'scan'):
                 self.worker.stop_sending.set()
@@ -326,6 +366,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Yêu cầu không hợp lệ.')
             if self.path == '/api/action':
                 self.server.app.action(data)
+            elif self.path == '/api/ai/draft':
+                return self.reply(200, self.server.app.ai_draft(data))
             elif self.path == '/api/settings':
                 self.server.app.save_settings(data)
             elif self.path == '/api/shutdown':

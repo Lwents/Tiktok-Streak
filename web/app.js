@@ -17,6 +17,7 @@ let lastScanSeen = null;
 let lastAccountSeen = null;
 let selectionProfile = null;
 let excluded = new Set();
+let aiTesting = false;
 const icon = name => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
@@ -73,7 +74,8 @@ function notify(message, error = false) {
   toastTimer = setTimeout(() => $('toast').hidden = true, error ? 6500 : 3500);
 }
 function settings() {
-  return {message: $('message').value, hours: Number($('hours').value), channel: $('browser-select').value, auto_restore: $('auto-restore').checked};
+  return {message: $('message').value, hours: Number($('hours').value), channel: $('browser-select').value, auto_restore: $('auto-restore').checked,
+    ai_enabled: $('ai-enabled').checked, ai_style: $('ai-style').value, daily_mode: $('daily-mode').value, video_query: $('video-query').value};
 }
 async function api(path, data) {
   const response = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-App-Token': token}, body: JSON.stringify(data)});
@@ -237,7 +239,10 @@ function updateControls() {
   const s = state.status;
   const busy = pending || s.busy;
   const locked = busy || s.automatic || !online;
-  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'search', 'auto-restore']) $(id).disabled = locked;
+  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'search', 'auto-restore','ai-enabled','ai-style','daily-mode','video-query']) $(id).disabled = locked;
+  $('ai-test').disabled = aiTesting || !online || !state.ai?.configured;
+  $('video-preview').disabled = busy || !online || !state.ai?.configured || !state.account?.authenticated;
+  $('ai-model').textContent = state.ai?.configured ? state.ai.model : 'Chưa cấu hình AI';
   for (const id of ['hero-login', 'qr-login', 'empty-login', 'account-refresh']) $(id).disabled = locked;
   $('scan-button').disabled = locked || !s.browser_connected || !state.account?.authenticated;
   const unconfirmed = s.rows_cached || s.account_checking;
@@ -297,6 +302,10 @@ async function poll() {
       $('hours').value = state.settings.hours;
       $('browser-select').value = state.settings.channel;
       $('auto-restore').checked = state.settings.auto_restore === true;
+      $('ai-enabled').checked = state.settings.ai_enabled === true;
+      $('ai-style').value = state.settings.ai_style || 'Viết tự nhiên, thân thiện bằng tiếng Việt, ngắn gọn.';
+      $('daily-mode').value = state.settings.daily_mode || 'text';
+      $('video-query').value = state.settings.video_query || 'chuỗi';
       initialized = true;
       updatePreview();
     } else if (!dirty && !pending && document.activeElement !== $('message') && document.activeElement !== $('hours') && document.activeElement !== $('browser-select')) {
@@ -304,6 +313,10 @@ async function poll() {
       $('hours').value = state.settings.hours;
       $('browser-select').value = state.settings.channel;
       $('auto-restore').checked = state.settings.auto_restore === true;
+      $('ai-enabled').checked = state.settings.ai_enabled === true;
+      $('ai-style').value = state.settings.ai_style || 'Viết tự nhiên, thân thiện bằng tiếng Việt, ngắn gọn.';
+      $('daily-mode').value = state.settings.daily_mode || 'text';
+      $('video-query').value = state.settings.video_query || 'chuỗi';
       updatePreview();
     }
     syncSelection();
@@ -311,7 +324,7 @@ async function poll() {
       lastScanSeen = state.status.scanned_at;
       if (state.rows.some(eligibleRow)) $('streak-filter').value = 'verified';
     }
-    renderAccount(); updateCounts(); renderFriends(); renderActivity(); updateControls();
+    renderAccount(); updateCounts(); renderFriends(); renderActivity(); updateControls(); renderVideo();
   } catch {
     online = false;
     $('offline-banner').hidden = false;
@@ -345,6 +358,7 @@ $('empty-login').addEventListener('click', () => action(state?.account?.authenti
 $('account-refresh').addEventListener('click', () => action('account'));
 $('qr-login').addEventListener('click', () => action('login', 'qr'));
 $('scan-button').addEventListener('click', () => action('scan'));
+$('video-preview').addEventListener('click', () => action('video_preview'));
 $('auto-button').addEventListener('click', () => action('auto'));
 $('send-button').addEventListener('click', () => action('send'));
 $('stop-button').addEventListener('click', () => action('stop'));
@@ -360,7 +374,8 @@ window.addEventListener('storage', event => {
   if (!state || (event.key !== selectionProfile && event.key !== null)) return;
   loadExclusions(); syncSelection(); renderFriends(); updateCounts(); updateControls();
 });
-for (const id of ['message', 'hours']) $(id).addEventListener('input', () => { updatePreview(); scheduleSave(); });
+for (const id of ['message', 'hours','ai-style','video-query']) $(id).addEventListener('input', () => { updatePreview(); scheduleSave(); });
+for (const id of ['ai-enabled','daily-mode']) $(id).addEventListener('change', () => { updateControls(); scheduleSave(); });
 $('auto-restore').addEventListener('change', () => { syncSelection(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
 $('browser-select').addEventListener('change', () => { selected.clear(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
 for (const [id, step] of [['hours-minus', -1], ['hours-plus', 1]]) $(id).addEventListener('click', () => {
@@ -396,3 +411,23 @@ document.querySelectorAll('nav .nav-link').forEach(link => link.addEventListener
 $('today').textContent = new Date().toLocaleDateString('vi-VN', {weekday: 'long', day: 'numeric', month: 'long'});
 updatePreview();
 poll();
+
+function renderVideo() {
+  const video=state?.video;
+  $('video-card').hidden=!video;
+  if(!video)return;
+  $('video-caption').textContent=video.caption || 'Video giữ chuỗi';
+  $('video-duration').textContent=`${video.duration} giây · AI đã kiểm tra mô tả và khung hình`;
+  $('video-reason').textContent=video.reason || '';
+  if ($('video-cover').getAttribute('src') !== (video.cover || '')) $('video-cover').src=video.cover || '';
+  $('video-link').href=video.url;
+}
+$('ai-test').addEventListener('click',async()=>{
+  if(aiTesting)return;aiTesting=true;updateControls();
+  $('ai-test-output').hidden=false;$('ai-test-output').textContent='AI đang soạn câu trả lời thử…';
+  try {
+    const result=await api('/api/ai/draft',{sample:$('ai-sample').value,settings:settings()});
+    $('ai-test-output').textContent=result.message;
+  } catch(error){$('ai-test-output').textContent=error.message;}
+  finally{aiTesting=false;updateControls();}
+});

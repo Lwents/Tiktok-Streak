@@ -93,3 +93,21 @@ For a fresh Ubuntu 24.04 host, install Python venv support, Google Chrome, `liba
 Xvfb, xauth, Openbox, x11vnc, noVNC/websockify and fonts. Install Python requirements
 in `/opt/tiktok-streak/.venv`. Create the isolated service user, its private Xauthority
 file, and install the provided systemd units before enabling them.
+
+AI provider credentials are stored only in `/var/lib/tiktok-streak/ai-provider.json`
+(mode 0600, owner `tiktok-streak`). `TIKTOK_AI_CONFIG` points the worker to this file.
+`/api/state` returns only the configured flag, URL and model. The web UI never receives
+an API key. The standard-library client uses HTTPS and refuses cross-host redirects.
+
+`ai_enabled` enables responses to new incoming text in the already approved chat scope.
+The saved `ai_started_at` timestamp prevents replying to the old backlog on activation;
+it survives service restarts. `ai-replies.json` journals drafts and each send before
+submission, keyed by account, chat and incoming message ID. A pending send blocks retries.
+AI polling runs separately from the daily streak check; manual replies and newer incoming
+messages cancel a stale draft. No incoming chat text is persisted in this ledger.
+
+`daily_mode: "video"` selects a public video with the configured vision-capable model.
+The chooser reads captions and three video frames, closes its temporary tab, and keeps
+the selected public metadata in `video-state.json`. The native SDK share composer uses
+type 8, the existing conversation object, verified owner/recipient and server acknowledgement.
+It never creates a new recipient conversation. No additional local AI model is installed.
