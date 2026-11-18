@@ -125,6 +125,35 @@ class BrowserChecks(unittest.TestCase):
         self.assertFalse(self.adapter.dismiss_sleep_reminder())
         self.assertTrue(self.page.get_by_role('dialog').is_visible())
 
+    def test_daily_time_reminder_returns_to_chat_with_displayed_code(self):
+        target = self.fixture()
+        self.page.evaluate('''() => {
+          const reminder = document.createElement('div');
+          reminder.style = 'position:fixed;inset:0;background:white;z-index:9999';
+          reminder.innerHTML = `
+            <h2>Ready to close TikTok?</h2>
+            <p>You've spent 13h 9m on TikTok today. Close it to stay within your
+            daily time, or enter the passcode <b>1234</b> to return to TikTok.</p>
+            <div><input type="password" maxlength="4"><div>0 / 4</div></div>
+            <button disabled><span>Return to TikTok</span></button>`;
+          const [input, button] = reminder.querySelectorAll('input, button');
+          input.oninput = () => { button.disabled = input.value !== '1234'; };
+          button.onclick = () => reminder.remove();
+          document.body.append(reminder);
+        }''')
+        self.adapter.prepare(target)
+        self.assertFalse(self.page.get_by_text('Ready to close TikTok?', exact=True).count())
+        self.assertEqual(self.adapter.editor.inner_text(), '')
+
+    def test_daily_time_reminder_without_displayed_code_requires_manual_entry(self):
+        self.fixture()
+        self.page.set_content('''<div role="dialog">
+          <h2>Ready to close TikTok?</h2><p>Enter your passcode to return to TikTok.</p>
+          <input type="password"><button>Return to TikTok</button></div>''')
+        with self.assertRaisesRegex(RuntimeError, 'giới hạn thời gian'):
+            self.adapter.dismiss_sleep_reminder()
+        self.assertEqual(self.page.locator('input').input_value(), '')
+
     def test_account_identity_comes_from_own_profile_navigation(self):
         self.fixture()
         self.page.set_content('''<a data-e2e="nav-profile" href="/@owner">Profile<img src="/avatar.png"></a>

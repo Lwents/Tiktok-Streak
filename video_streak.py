@@ -30,6 +30,7 @@ class VideoSelector:
         try:
             page.goto('https://www.tiktok.com/search?q='+quote(query),wait_until='domcontentloaded',timeout=30000)
             if stop is not None and stop.is_set():raise AIError('Đã dừng chọn video.')
+            browser.dismiss_sleep_reminder(page)
             page.locator('a[href*="/video/"]').first.wait_for(state='attached',timeout=25000)
             links=page.locator('a[href*="/video/"]').evaluate_all('els=>[...new Set(els.map(el=>el.href))]')
             started=time.monotonic()
@@ -64,6 +65,7 @@ class VideoSelector:
         import base64
         page.goto(video_url(url),wait_until='domcontentloaded',timeout=30000)
         if stop is not None and stop.is_set():raise AIError('Đã dừng chọn video.')
+        if browser:browser.dismiss_sleep_reminder(page)
         page.locator('video').first.wait_for(state='visible',timeout=15000)
         if stop is not None and stop.is_set():raise AIError('Đã dừng chọn video.')
         if browser:browser.dismiss_sleep_reminder(page)

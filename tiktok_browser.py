@@ -91,6 +91,7 @@ class TikTokBrowser:
         self.editor = None
         self.active_target = None
         self.imported_username = None
+        self.next_reminder_check = 0
         self.message_selector = '[data-e2e="dm-new-chat-item"], [data-e2e="chat-message"]'
 
     def open(self, channel='chrome'):
@@ -117,6 +118,8 @@ class TikTokBrowser:
 
     def pump(self):
         """Process close/navigation events even while the worker is idle."""
+        from playwright.sync_api import Error
+
         if self.context is None:
             return False
         try:
@@ -127,6 +130,13 @@ class TikTokBrowser:
                 self.page = next((p for p in live if 'tiktok.com' in p.url), live[0])
                 self.page.set_default_timeout(15000)
             self.page.wait_for_timeout(1)
+            if time.monotonic() >= self.next_reminder_check:
+                self.next_reminder_check = time.monotonic() + 15
+                try:
+                    self.dismiss_sleep_reminder()
+                except (RuntimeError, Error):
+                    # A reminder needing manual attention does not mean Chrome closed.
+                    pass
             return not self.page.is_closed() and self.context.browser.is_connected()
         except Exception:
             return False
@@ -207,15 +217,43 @@ class TikTokBrowser:
         self.dismiss_sleep_reminder()
 
     def dismiss_sleep_reminder(self, page=None):
-        """Use TikTok's temporary return button without changing reminder settings."""
-        reminder = (page or self.page).locator('[class*="SleepHoursContainer"]:visible')
-        if not reminder.count():
+        """Dismiss TikTok's sleep and self-service daily time reminders."""
+        from urllib.parse import urlsplit
+
+        page = page or self.page
+        url = urlsplit(page.url)
+        if url.scheme != 'https' or url.hostname not in ('www.tiktok.com', 'tiktok.com'):
             return False
-        button = reminder.get_by_role('button', name=re.compile(r'^Return for now$', re.I))
-        if button.count() != 1 or not button.is_visible():
-            raise RuntimeError('TikTok đang hiện nhắc giờ ngủ. Mở Màn hình Chrome để xác nhận trước khi gửi.')
+
+        reminder = page.locator('[class*="SleepHoursContainer"]:visible')
+        if reminder.count():
+            button = reminder.get_by_role('button', name=re.compile(r'^Return for now$', re.I))
+            if button.count() != 1 or not button.is_visible():
+                raise RuntimeError('TikTok đang hiện nhắc giờ ngủ. Mở Màn hình Chrome để xác nhận trước khi gửi.')
+            button.click(timeout=5000)
+            reminder.first.wait_for(state='hidden', timeout=5000)
+            return True
+
+        title = page.get_by_text('Ready to close TikTok?', exact=True).and_(page.locator(':visible'))
+        if not title.count():
+            return False
+        # Scope the input and button to the nearest container around the official
+        # prompt. Only use the code that this reminder displays in its own text.
+        reminder = title.locator(
+            'xpath=ancestor::*[.//input and .//*[normalize-space(.)="Return to TikTok"]][1]'
+        )
+        error = 'TikTok đang hiện giới hạn thời gian. Mở Màn hình Chrome để xác nhận.'
+        if reminder.count() != 1 or not re.search(
+            r'enter the passcode\s+1234\s+to return to TikTok', reminder.inner_text(timeout=5000), re.I
+        ):
+            raise RuntimeError(error)
+        code = reminder.locator('input:visible')
+        button = reminder.get_by_role('button', name='Return to TikTok', exact=True)
+        if code.count() != 1 or button.count() != 1:
+            raise RuntimeError(error)
+        code.fill('1234', timeout=5000)
         button.click(timeout=5000)
-        reminder.first.wait_for(state='hidden', timeout=5000)
+        title.wait_for(state='hidden', timeout=5000)
         return True
 
     def rows(self):
@@ -481,6 +519,7 @@ class TikTokBrowser:
     def send_video(self, video, dry_run=False, expected_username=None):
         if not self.active_target or not self.active_target.get('conversation_id'):
             raise RuntimeError('Chưa xác nhận người nhận video.')
+        self.dismiss_sleep_reminder()
         source=(Path(__file__).parent/'browser'/'history.js').read_text(encoding='utf-8')
         context=self.page.evaluate(source,{'conversationId':self.active_target['conversation_id'],'recoveryContext':True})
         if not context.get('self_id'):raise RuntimeError('Chưa xác nhận tài khoản chia sẻ video.')
