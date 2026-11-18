@@ -213,7 +213,8 @@ function renderAccount() {
   $('browser-screen').href = location.protocol === 'https:' ? '/browser/' : 'http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale';
   $('shutdown-label').textContent = remote ? 'Dừng giữ chuỗi' : 'Tắt ứng dụng';
   $('runtime-label').textContent = remote ? 'Đang chạy trên VPS' : 'Chạy trên máy của bạn';
-  $('runtime-location').textContent = remote ? 'VPS Ubuntu' : 'Local workspace';
+  $('runtime-location').textContent = remote ? 'VPS Ubuntu' :
+    state.runtime?.mode === 'desktop' ? 'Ứng dụng Windows' : 'Local workspace';
   $('daily-schedule').querySelector('p').textContent = remote ? 'Theo giờ Việt Nam (UTC+7) trên VPS' : 'Theo giờ trên máy tính của bạn';
   const connected = Boolean(state.account?.authenticated && state.status.browser_connected);
   const signature = JSON.stringify([state.account, state.status.browser_connected, state.status.operation, state.status.scanned_at, state.status.total]);
@@ -400,8 +401,8 @@ $('shutdown-button').addEventListener('click', async () => {
     await api('/api/shutdown', {});
     stoppingApp = true; online = false; updateControls();
     $('offline-banner').hidden = false;
-    $('offline-banner').textContent = 'Ứng dụng đã tắt. Chạy start.bat khi bạn muốn giữ lửa tiếp nhé.';
-    notify('Đã tắt ứng dụng. Bạn có thể đóng tab này.');
+    $('offline-banner').textContent = 'Ứng dụng đã tắt. Chạy start-windows.bat để mở lại.';
+    notify('Đã tắt ứng dụng.');
   } catch (error) { notify(error.message, true); }
 });
 document.querySelectorAll('nav .nav-link').forEach(link => link.addEventListener('click', () => {

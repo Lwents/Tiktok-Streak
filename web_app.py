@@ -30,9 +30,11 @@ def normalize_public_origin(value):
 
 
 class Dashboard:
-    def __init__(self, root=ROOT, inspect=False, worker_factory=Worker, persist_automation=False):
+    def __init__(self, root=ROOT, inspect=False, worker_factory=Worker, persist_automation=False,
+                 *, desktop_window=False):
         self.root = Path(root)
         self.server_mode = persist_automation
+        self.runtime_mode = 'desktop' if desktop_window else ('vps' if persist_automation else 'local')
         self.lock = threading.RLock()
         self.events = queue.Queue()
         self.settings = self.validate_settings(read_json(self.root / 'desktop-settings.json', {}))
@@ -197,7 +199,7 @@ class Dashboard:
     def snapshot(self):
         with self.lock:
             return {'revision': self.revision, 'status': dict(self.status), 'settings': dict(self.settings),
-                    'runtime': {'platform': sys.platform, 'mode': 'vps' if self.server_mode else 'local'},
+                    'runtime': {'platform': sys.platform, 'mode': self.runtime_mode},
                     'ai': AIClient.public_status(self.root),
                     'video': self.selected_video,
                     'account': dict(self.account) if self.account else None,

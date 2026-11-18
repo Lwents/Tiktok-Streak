@@ -1,19 +1,19 @@
 # Streak — Giữ lửa mỗi ngày
 
-Tool giữ chuỗi TikTok với giao diện web chạy trên Windows. Python điều khiển Chrome/Edge, trang web hiển thị danh sách người nhận, nội dung tin, lịch gửi hằng ngày và nhật ký trực tiếp. Giao diện dùng dữ liệu thật của phiên chạy. Danh sách hiện cả các cuộc trò chuyện chưa xác minh được chuỗi, với nhãn riêng và khóa gửi tự động.
+App Windows giữ chuỗi TikTok. Python điều khiển Chrome/Edge, bảng điều khiển hiển thị danh sách người nhận, nội dung tin, lịch gửi hằng ngày và nhật ký trực tiếp. Danh sách hiện cả các cuộc trò chuyện chưa xác minh được chuỗi, với nhãn riêng và khóa gửi tự động.
 
 ## Bắt đầu
 
-1. Cài Python 3.10+ có Python Launcher (`py`) và Google Chrome hoặc Microsoft Edge.
+1. Cài Python 3.10+ có Python Launcher (`py`), Microsoft Edge WebView2 Runtime và Google Chrome hoặc Microsoft Edge.
 2. Chạy `setup.bat` một lần.
-3. Chạy **`start-windows.bat`** để chạy bản Windows cục bộ. Trang **http://127.0.0.1:8765** tự mở trên trình duyệt.
+3. Chạy **`start-windows.bat`** để mở cửa sổ **TikTok Streak** trên máy Windows. Bảng điều khiển chạy trong cửa sổ app bằng WebView2.
 4. Bấm **Kết nối TikTok**, đăng nhập trong cửa sổ Chrome/Edge được tool mở, vào **Tin nhắn**. Chọn trình duyệt ở chân danh sách bạn bè nếu cần đổi sang Edge.
 5. Quay về bảng điều khiển, bấm **Quét danh sách**. Sau khi đọc danh sách, tool tự kiểm tra lịch sử của các cuộc trò chuyện còn hoạt động gần đây; tiến độ hiển thị trong lúc quét.
 6. Tool tự chọn chat có bằng chứng chuỗi; soạn tin rồi bấm **Gửi một lượt** để kiểm tra/gửi một đợt, hoặc **Bật giữ chuỗi** để tự kiểm tra và gửi sau 00:00 mỗi ngày theo giờ của trình duyệt.
 
 Bạn có thể tìm tên, chọn tất cả kết quả đang lọc và xem trước tin nhắn. Nội dung và cấu hình được lưu tự động. Khi bật sẽ kiểm tra ngay; những ngày sau bắt đầu kiểm tra/gửi từ 00:00, bỏ qua chat đã rep trong ngày. Khi đang tự động, bấm **Dừng tác vụ** để sửa cấu hình.
 
-Máy cần thức, ứng dụng và cửa sổ TikTok cần được giữ mở. Đóng tab bảng điều khiển không dừng tác vụ; mở lại địa chỉ trên để tiếp tục theo dõi. Bấm **Tắt ứng dụng** trong menu trái để dừng backend. `start-desktop.bat` mở giao diện Tkinter cũ khi cần; dùng một giao diện điều khiển TikTok tại một thời điểm.
+Máy cần thức và app cần mở để tự động theo dõi. Có thể thu nhỏ cửa sổ app. Bấm **Tắt ứng dụng** hoặc đóng cửa sổ để dừng phiên chạy trên Windows. `start-desktop.bat` mở giao diện Tkinter cũ khi cần; dùng một giao diện điều khiển TikTok tại một thời điểm.
 
 ## Đăng nhập và nhận diện chuỗi
 

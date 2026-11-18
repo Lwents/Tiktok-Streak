@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 browser-profile/
+desktop-webview/
 config.json
 state.json
 state.tmp
