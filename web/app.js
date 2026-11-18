@@ -18,6 +18,40 @@ let lastAccountSeen = null;
 let selectionProfile = null;
 let excluded = new Set();
 let aiTesting = false;
+const desktopScreens = {
+  overview: 'Tổng quan', friends: 'Cuộc trò chuyện', composer: 'Cài đặt gửi', activity: 'Nhật ký hoạt động'
+};
+
+function showDesktopScreen() {
+  const hash = location.hash.slice(1);
+  const screen = Object.hasOwn(desktopScreens, hash) ? hash : 'overview';
+  $('overview').dataset.screen = screen;
+  document.querySelector('.breadcrumb strong').textContent = desktopScreens[screen];
+  for (const link of document.querySelectorAll('nav a.nav-link')) {
+    const active = link.hash === '#' + screen;
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  }
+  requestAnimationFrame(() => window.scrollTo({top: 0, behavior: 'instant'}));
+}
+
+function enableDesktopLayout() {
+  document.body.classList.add('desktop-layout');
+  $('desktop-account-slot').append(document.querySelector('.hero-buttons'));
+  $('desktop-send-slot').append($('send-controls'));
+  $('auto-button').before($('send-button'));
+  const advanced = document.createElement('details');
+  advanced.className = 'desktop-advanced';
+  const summary = document.createElement('summary');
+  summary.textContent = 'AI và video';
+  const ai = document.querySelector('.ai-box');
+  const video = document.querySelector('.video-box');
+  ai.before(advanced);
+  advanced.append(summary, video, ai);
+  window.addEventListener('hashchange', showDesktopScreen);
+  showDesktopScreen();
+}
 const icon = name => {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
@@ -240,7 +274,7 @@ function updateControls() {
   const s = state.status;
   const busy = pending || s.busy;
   const locked = busy || s.automatic || !online;
-  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'search', 'auto-restore','ai-enabled','ai-style','daily-mode','video-query']) $(id).disabled = locked;
+  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'auto-restore','ai-enabled','ai-style','daily-mode','video-query']) $(id).disabled = locked;
   $('ai-test').disabled = aiTesting || !online || !state.ai?.configured;
   $('video-preview').disabled = busy || !online || !state.ai?.configured || !state.account?.authenticated;
   $('ai-model').textContent = state.ai?.configured ? state.ai.model : 'Chưa cấu hình AI';
@@ -248,15 +282,19 @@ function updateControls() {
   $('scan-button').disabled = locked || !s.browser_connected || !state.account?.authenticated;
   const unconfirmed = s.rows_cached || s.account_checking;
   $('select-all').disabled = locked || unconfirmed || !filteredRows().some(selectableRow);
-  $('streak-filter').disabled = locked;
+  for (const id of ['search', 'streak-filter']) $(id).disabled = !online || (state.runtime?.mode !== 'desktop' && locked);
   const valid = $('message').value.trim() && Number.isFinite(Number($('hours').value)) && Number($('hours').value) >= 1 && Number($('hours').value) <= 168;
   $('send-button').disabled = locked || unconfirmed || !selected.size || !valid;
   $('auto-button').disabled = locked || unconfirmed || !selected.size || !valid;
   $('stop-button').hidden = !(busy || s.automatic);
   $('stop-button').disabled = !online || pending;
-  $('send-actions')?.classList.toggle('running', s.automatic);
+  if (state.runtime?.mode === 'desktop') {
+    const runState = !online ? 'Mất kết nối' : busy ? 'Đang xử lý' : s.automatic ? 'Tự động đang bật' : 'Tự động đang tắt';
+    $('desktop-run-state').textContent = runState;
+    $('desktop-run-state').classList.toggle('enabled', online && s.automatic);
+  }
   const repliedSelected = state.rows.filter(row => selected.has(row.key) && replyToday(row) === 'replied').length;
-  const note = !online ? 'Mở lại start.bat để kết nối với ứng dụng.' : s.automatic ? 'Đang giữ chuỗi theo ngày. Qua 00:00 tự kiểm tra chat chưa rep; bấm Dừng để thay đổi.' : busy ? ({login: 'Đang mở cửa sổ TikTok…', restore: 'Đang khôi phục phiên đăng nhập…', account: 'Đang cập nhật tài khoản TikTok…', scan: s.history_total ? `Đang kiểm tra lịch sử ${s.history_checked}/${s.history_total} · Đã tìm được ${s.history_matches} chuỗi…` : 'Đang đọc danh sách cuộc trò chuyện…', send: 'Đang kiểm tra người nhận và gửi tin…', auto: 'Đang bắt đầu lượt giữ chuỗi…'}[s.operation] || 'Đang thực hiện, bạn chờ một chút…') : selected.size ? `Đã chọn ${selected.size} chat giữ chuỗi.` + (repliedSelected ? ` ${repliedSelected} chat đã rep hôm nay sẽ được bỏ qua.` : '') : 'Tool tự chọn các chat đủ bằng chứng chuỗi. Bạn có thể chọn lại nếu đã bỏ chọn.';
+  const note = !online ? 'Mở lại ứng dụng để kết nối.' : s.automatic ? 'Tự kiểm tra từ 00:00 khi máy và ứng dụng đang chạy.' : busy ? ({login: 'Đang mở cửa sổ TikTok…', restore: 'Đang khôi phục phiên đăng nhập…', account: 'Đang cập nhật tài khoản TikTok…', scan: s.history_total ? `Đang kiểm tra lịch sử ${s.history_checked}/${s.history_total} · Đã tìm được ${s.history_matches} chuỗi…` : 'Đang đọc danh sách cuộc trò chuyện…', send: 'Đang kiểm tra người nhận và gửi tin…', auto: 'Đang bắt đầu lượt giữ chuỗi…'}[s.operation] || 'Đang thực hiện, bạn chờ một chút…') : selected.size ? `Đã chọn ${selected.size} chat giữ chuỗi.` + (repliedSelected ? ` ${repliedSelected} chat đã rep hôm nay sẽ được bỏ qua.` : '') : state.account?.authenticated ? 'Chọn người nhận trong Cuộc trò chuyện để bắt đầu.' : 'Kết nối TikTok để quét cuộc trò chuyện.';
   $('send-note').textContent = note;
   if (!busy && unconfirmed) $('send-note').textContent = s.account_checking ? 'TikTok đang tải lại. Đang xác nhận phiên đăng nhập; danh sách vẫn được giữ.' : 'Danh sách đã lưu đang chờ cập nhật. Bấm Quét danh sách để kiểm tra lại trước khi gửi.';
   $('scan-button').querySelector('svg').classList.toggle('spinning', s.operation === 'scan');
@@ -299,6 +337,7 @@ async function poll() {
     online = true;
     $('offline-banner').hidden = true;
     if (!initialized) {
+      if (state.runtime?.mode === 'desktop') enableDesktopLayout();
       $('message').value = state.settings.message;
       $('hours').value = state.settings.hours;
       $('browser-select').value = state.settings.channel;

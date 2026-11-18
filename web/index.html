@@ -34,7 +34,7 @@
   <nav aria-label="Điều hướng">
     <a class="nav-link active" href="#overview"><svg><use href="#i-grid"/></svg>Tổng quan<span class="nav-active-dot"></span></a>
     <a class="nav-link" href="#friends"><svg><use href="#i-users"/></svg>Cuộc trò chuyện<span id="nav-count" class="nav-count">0</span></a>
-    <a class="nav-link" href="#composer"><svg><use href="#i-message"/></svg>Soạn tin nhắn</a>
+    <a class="nav-link" href="#composer"><svg><use href="#i-message"/></svg>Cài đặt gửi</a>
     <a class="nav-link" href="#activity"><svg><use href="#i-clock"/></svg>Nhật ký hoạt động</a>
   </nav>
   <div class="sidebar-bottom">
@@ -50,6 +50,15 @@
   <main id="overview">
     <div class="page-heading"><div><p class="eyebrow">MỘT NGÀY MỚI, MỘT KẾT NỐI MỚI</p><h1>Bảng điều khiển</h1><p class="page-subtitle" id="page-subtitle">Chăm chút những cuộc trò chuyện, giữ lửa cùng bạn bè.</p></div><div class="date-label"><svg><use href="#i-clock"/></svg><span id="today"></span></div></div>
     <div id="offline-banner" class="offline-banner" hidden>Không kết nối được với tool. Mở lại <strong>start-windows.bat</strong> trên Windows.</div>
+    <section class="desktop-only desktop-quick panel" aria-labelledby="quick-title">
+      <div class="quick-heading"><h2 id="quick-title">Giữ chuỗi</h2><span id="desktop-run-state" role="status"></span></div>
+      <div id="desktop-send-slot"></div>
+      <div class="quick-tools">
+        <div id="desktop-account-slot"></div>
+        <a class="button secondary" href="#friends">Chọn người nhận</a>
+        <a class="button secondary" href="#composer">Sửa nội dung gửi</a>
+      </div>
+    </section>
     <section class="hero" aria-labelledby="hero-title"><div class="hero-content"><span class="hero-tag"><svg><use href="#i-fire"/></svg>STREAK COMPANION</span><h2 id="hero-title">Giữ lửa mỗi ngày<span>.</span></h2><p>Thêm một tin nhắn. Thêm một ngày kết nối.<br>Để những chuỗi thân quen luôn tiếp tục.</p><div class="hero-buttons"><button id="hero-login" class="button dark"><svg><use href="#i-globe"/></svg><span id="hero-login-label">Kết nối TikTok</span><svg class="button-end"><use href="#i-arrow"/></svg></button><button id="qr-login" class="button qr-button"><svg><use href="#i-grid"/></svg>Đăng nhập bằng QR</button></div></div><div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="art-spark spark-one">✦</div><div class="art-spark spark-two">✧</div><div class="floating-chat chat-one"><span></span><span></span><span></span></div><div class="flame-tile"><svg viewBox="0 0 24 24"><use href="#i-fire"/></svg></div><div class="art-label"><span class="dot orange"></span>Mỗi ngày, một kết nối</div></div></section>
     <section class="stats" aria-label="Thống kê phiên làm việc">
       <article class="stat-card"><div><p>Chuỗi tự tìm được</p><strong id="streak-count">—</strong><span id="scan-hint">Quét danh sách để cập nhật</span></div><span class="stat-icon peach"><svg><use href="#i-fire"/></svg></span></article>
@@ -73,7 +82,7 @@
           <div class="interval-row" hidden><div><label class="field-label" for="hours">Khoảng cách gửi</label><p>Tính riêng cho từng người nhận</p></div><div class="number-control"><button id="hours-minus" aria-label="Giảm một giờ">−</button><input id="hours" type="number" min="1" max="168" step="1" value="20" aria-label="Khoảng cách gửi theo giờ"><span>giờ</span><button id="hours-plus" aria-label="Tăng một giờ">+</button></div></div>
           <span id="interval-preview" hidden></span><div class="interval-row" id="daily-schedule"><div><span class="field-label">Lịch giữ chuỗi</span><p>Theo giờ trên máy tính của bạn</p></div><strong>00:00 mỗi ngày</strong></div><div class="schedule-note"><svg><use href="#i-clock"/></svg><span>Khi bật sẽ kiểm tra ngay. Sang ngày mới tự rep; chat đã rep hôm nay được bỏ qua.</span></div>
           <label class="restore-option"><input id="auto-restore" type="checkbox"><span><strong>Tự khôi phục chuỗi</strong><small>Dùng lượt khôi phục có sẵn cho các chat đã chọn khi TikTok còn cho phép.</small></span></label>
-          <div class="send-actions"><button id="auto-button" class="button primary"><svg><use href="#i-play"/></svg>Bật giữ chuỗi</button><button id="send-button" class="button secondary"><svg><use href="#i-send"/></svg>Gửi một lượt</button></div><button id="stop-button" class="button stop-button" hidden><svg><use href="#i-stop"/></svg>Dừng tác vụ</button><p class="send-footnote" id="send-note">Chọn người nhận trong danh sách để bắt đầu.</p>
+          <div id="send-controls"><div class="send-actions"><button id="auto-button" class="button primary"><svg><use href="#i-play"/></svg>Bật giữ chuỗi</button><button id="send-button" class="button secondary"><svg><use href="#i-send"/></svg>Gửi một lượt</button></div><button id="stop-button" class="button stop-button" hidden><svg><use href="#i-stop"/></svg>Dừng tác vụ</button><p class="send-footnote" id="send-note">Chọn người nhận trong danh sách để bắt đầu.</p></div>
         </div>
       </section>
     </div>
