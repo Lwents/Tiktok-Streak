@@ -1,4 +1,4 @@
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppExe "TikTok Streak.exe"
 #define AppModelId "Lwents.TikTokStreak"
 

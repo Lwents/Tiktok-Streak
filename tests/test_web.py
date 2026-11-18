@@ -202,7 +202,7 @@ class WebChecks(unittest.TestCase):
         self.assertEqual(command, 'send')
         self.assertEqual(payload['targets'][0]['history_evidence']['days_lower_bound'], 14)
 
-    def test_history_candidate_has_lower_bound_label_and_can_be_selected(self):
+    def test_history_candidate_omits_inferred_day_count_and_can_be_selected(self):
         from playwright.sync_api import sync_playwright, expect
         self.app.rows[0].update(streak_status='history_confirmed', conversation_id='one',badge='≥14 ngày · lịch sử TikTok',
                                 history_evidence={'marker_day':'2026-11-01','days_lower_bound':14,'timezone':'Asia/Bangkok'})
@@ -212,7 +212,8 @@ class WebChecks(unittest.TestCase):
                 page=browser.new_page()
                 page.goto(self.url)
                 expect(page.get_by_label('Chọn Alice')).to_be_enabled()
-                expect(page.locator('.friend-row').filter(has=page.get_by_label('Chọn Alice')).locator('.friend-badge')).to_have_text('≥14 ngày')
+                expect(page.locator('.friend-row').filter(has=page.get_by_label('Chọn Alice')).locator('.friend-badge')).to_have_text('Có chuỗi · chưa rõ số ngày')
+                expect(page.locator('.friend-row').filter(has=page.get_by_label('Chọn Bob')).locator('.friend-badge')).to_have_text('7 ngày')
                 page.get_by_label('Chọn Alice').check()
                 expect(page.locator('#send-button')).to_be_enabled()
                 page.locator('#send-button').click()

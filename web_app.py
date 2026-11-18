@@ -146,7 +146,7 @@ class Dashboard:
                                 proof = value['evidence']
                                 row['history_evidence'] = dict(proof)
                                 row['recovery'] = {k: v for k, v in value['recovery'].items() if k != 'evidence'}
-                                if proof.get('status') == 'history_confirmed':
+                                if proof.get('status') == 'history_confirmed' and row['streak_status'] != 'verified':
                                     row.update(streak_status='history_confirmed', badge=f"≥{proof['days_lower_bound']} ngày · lịch sử TikTok")
                                 elif proof.get('recovery'):
                                     row.update(streak_status='unknown', badge='')

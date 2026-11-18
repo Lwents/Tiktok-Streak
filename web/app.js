@@ -206,10 +206,14 @@ function renderFriends() {
     sub.textContent = (row.is_group ? 'Nhóm · ' : '') + (reply === 'replied' ? 'Bạn đã rep hôm nay · Tool tự bỏ qua' : reply === 'needed' ? 'Bạn chưa rep hôm nay' : row.streak_status === 'history_confirmed' ? 'Thông báo chuỗi TikTok · Chưa kiểm tra rep hôm nay' : verified ? 'Đã xác minh huy hiệu chuỗi' : 'Chưa có trạng thái chuỗi hiện tại'); name.append(sub);
     if (recoveryNotice(row)) sub.textContent = row.recovery?.reason || (recoveryNotice(row).status === 'expired' ? 'Đã quá hạn khôi phục của TikTok' : 'Đã mất chuỗi · Chờ khôi phục trước khi gửi tiếp');
     const badge = document.createElement('span');
-    badge.className = 'friend-badge' + (verified ? '' : ' unknown'); badge.title = row.streak_status === 'history_confirmed' ? `Đối chiếu thông báo chuỗi ngày ${row.history_evidence.marker_day} với lịch sử trao đổi. Số ngày hiển thị là mức tối thiểu quan sát được (${row.history_evidence.timezone}).` : row.badge || 'Không đủ dữ liệu để xác minh chuỗi';
+    const fromHistory = row.streak_status === 'history_confirmed';
+    badge.className = 'friend-badge' + (verified ? '' : ' unknown');
+    badge.title = fromHistory ? 'Đã xác nhận theo lịch sử. TikTok Web chưa hiển thị số ngày cho chat này.' : row.badge || 'Không đủ dữ liệu để xác minh chuỗi';
     badge.append(icon(verified ? 'fire' : 'clock'));
     const days = (row.badge || '').match(/\b(\d{1,5})\b/);
-    badge.append(document.createTextNode(verified ? (days ? `${row.streak_status === 'history_confirmed' ? '≥' : ''}${days[1]} ngày` : 'Đã xác minh') : 'Chưa xác minh'));
+    const badgeText = fromHistory ? 'Có chuỗi · chưa rõ số ngày' :
+      verified ? (days ? `${days[1]} ngày` : 'Đã xác minh') : 'Chưa xác minh';
+    badge.append(document.createTextNode(badgeText));
     if (recoveryNotice(row)) { badge.replaceChildren(icon('refresh'), document.createTextNode(recoveryNotice(row).status === 'expired' ? 'Hết hạn khôi phục' : 'Cần khôi phục')); badge.title = 'TikTok báo mất chuỗi ngày ' + recoveryNotice(row).ended_day; }
     label.append(checkbox, avatar, name, badge); fragment.append(label);
   }
@@ -236,7 +240,7 @@ function updateCounts() {
   $('nav-count').textContent = state.rows.length;
   $('scan-hint').textContent = state.status.scanned_at ? (history ? `${history} qua thông báo + lịch sử TikTok` : unknown ? `${unknown} cuộc trò chuyện chưa có trạng thái` : `Đã đọc ${state.status.total ?? state.rows.length} cuộc trò chuyện`) : 'Quét danh sách để cập nhật';
   $('scan-notice').hidden = !unknown && !history;
-  $('scan-notice').textContent = history ? `Tự tìm được ${history} cuộc trò chuyện có thông báo chuỗi TikTok, gồm cả chuỗi đã khôi phục; đã đối chiếu các ngày sau thông báo. Số ngày ≥ là mức tối thiểu từ bằng chứng đã đọc, chưa phải bộ đếm trực tiếp. ${unknown} cuộc trò chuyện khác chưa đủ bằng chứng.` : unknown ? `Đã tự đọc ${state.status.total ?? state.rows.length} cuộc trò chuyện. ${unknown} người chưa có đủ bằng chứng chuỗi. Các dòng “Chưa xác minh” chưa đủ điều kiện gửi tự động.` : '';
+  $('scan-notice').textContent = history ? `${history} chat có chuỗi theo lịch sử. Số ngày chỉ hiện khi đọc được huy hiệu TikTok. ${unknown} chat chưa xác minh.` : unknown ? `Đã tự đọc ${state.status.total ?? state.rows.length} cuộc trò chuyện. ${unknown} người chưa có đủ bằng chứng chuỗi. Các dòng “Chưa xác minh” chưa đủ điều kiện gửi tự động.` : '';
   if (groups || replied) {
     $('scan-notice').hidden = false;
     $('scan-notice').textContent += ` Có ${groups} nhóm có chuỗi. ${replied} chat bạn đã rep hôm nay sẽ được tự bỏ qua; tool kiểm tra lại ngay trước khi gửi.`;
@@ -333,6 +337,9 @@ function updateControls() {
     const runState = !online ? 'Mất kết nối' : busy ? 'Đang xử lý' : s.automatic ? 'Tự động đang bật' : 'Tự động đang tắt';
     $('desktop-run-state').textContent = runState;
     $('desktop-run-state').classList.toggle('enabled', online && s.automatic);
+    $('desktop-send-mode').textContent = $('daily-mode').value === 'video'
+      ? (state.ai?.configured ? 'Tự tìm và chia sẻ video chuỗi khi cần gửi.' : 'Chưa có cấu hình AI. App sẽ gửi tin nhắn đã soạn.')
+      : 'Gửi tin nhắn đã soạn.';
   }
   const repliedSelected = state.rows.filter(row => selected.has(row.key) && replyToday(row) === 'replied').length;
   const note = !online ? 'Mở lại ứng dụng để kết nối.' : s.automatic ? 'Tự kiểm tra từ 00:00 khi máy và ứng dụng đang chạy.' : busy ? ({login: 'Đang mở cửa sổ TikTok…', restore: 'Đang khôi phục phiên đăng nhập…', account: 'Đang cập nhật tài khoản TikTok…', scan: s.history_total ? `Đang kiểm tra lịch sử ${s.history_checked}/${s.history_total} · Đã tìm được ${s.history_matches} chuỗi…` : 'Đang đọc danh sách cuộc trò chuyện…', send: 'Đang kiểm tra người nhận và gửi tin…', auto: 'Đang bắt đầu lượt giữ chuỗi…'}[s.operation] || 'Đang thực hiện, bạn chờ một chút…') : selected.size ? `Đã chọn ${selected.size} chat giữ chuỗi.` + (repliedSelected ? ` ${repliedSelected} chat đã rep hôm nay sẽ được bỏ qua.` : '') : state.account?.authenticated ? 'Chọn người nhận trong Cuộc trò chuyện để bắt đầu.' : 'Kết nối TikTok để quét cuộc trò chuyện.';
