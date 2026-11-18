@@ -14,6 +14,8 @@ POSITIVE_SCENES = RESTORE_SCENES | {
 }
 GROUP_RESTORE_SCENES = {'streak_group_recover'}
 GROUP_POSITIVE_SCENES = GROUP_RESTORE_SCENES | {'streak_group_unlock', 'streak_group_upgrade'}
+RESTORABLE_END_SCENES = {'streak_end_with_restore', 'streak_end_with_restore_with_pet',
+                         'streak_group_end_with_restore', 'streak_group_end_with_restore_with_pet'}
 # User-sent message kinds in the web SDK; system notices and bot responses are excluded.
 USER_TYPES = {2, 3, 4, 5, 6, 7, 8, 11, 15, 16, 19, 21, 22, 25, 26, 33, 40, 43, 71, 72, 81, 101,
               1021, 1025, 1033, 1034, 1036, 1038, 1039, 1801, 1802, 1803, 1805, 1806, 1809,
@@ -47,7 +49,7 @@ def analyze_history(snapshot):
             if scene in (GROUP_POSITIVE_SCENES if is_group else POSITIVE_SCENES):
                 positives.append((timestamp, day, scene))
             elif scene.startswith(('streak_end', 'streak_group_end')):
-                endings.append(timestamp)
+                endings.append((timestamp, day, scene, message_id))
         direction = message.get('direction')
         if message.get('type') in USER_TYPES and direction in ('self', 'peer') and message.get('valid', False):
             sender = message.get('sender_id', '') if is_group else direction
@@ -73,6 +75,18 @@ def analyze_history(snapshot):
               'timezone': snapshot.get('timezone', ''), 'checked_at': now,
               'anchor_day': anchor.isoformat(),
               'last_exchange_day': anchor.isoformat() if run else None}
+    # An explicit ending is meaningful even when the missing daily exchange
+    # makes every older positive notice ineligible for the active streak.
+    if endings:
+        ended_at, ended_day, end_scene, event_id = max(endings)
+        if ended_at >= max((p[0] for p in positives), default=0):
+            offered = end_scene in RESTORABLE_END_SCENES
+            deadline = ended_at + 48 * 3600
+            result.update(reason='later_end_notice', recovery={
+                'status': 'available' if offered and now < deadline else 'expired' if offered else 'unavailable',
+                'event_id': event_id, 'ended_at': ended_at, 'ended_day': ended_day.isoformat(),
+                'deadline_at': deadline, 'scene': end_scene})
+            return result
     # A genuine TikTok notice establishes the streak on its own day. A restore
     # deliberately repairs missing exchanges before/on that day: requiring three
     # new mutual days would hide restored streaks, including a restore today.
@@ -84,14 +98,14 @@ def analyze_history(snapshot):
                             else 'no_tiktok_system_confirmation')
         return result
     timestamp, marker_day, scene = max(eligible)
-    if any(ending >= timestamp for ending in endings):
+    if any(ending[0] >= timestamp for ending in endings):
         result['reason'] = 'later_end_notice'
         return result
     result.update(status='history_confirmed', reason='system_notice_and_daily_exchange',
                   days_lower_bound=max(3, len(run)),
                   observed_exchange_days=len(run),
                   restored=scene in RESTORE_SCENES | GROUP_RESTORE_SCENES,
-                  marker_scene=scene, marker_day=marker_day.isoformat(),
+                  marker_scene=scene, marker_day=marker_day.isoformat(), marker_at=timestamp,
                   exchange_days=[day.isoformat() for day in reversed(run)])
     return result
 

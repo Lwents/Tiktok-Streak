@@ -9,3 +9,5 @@
 .status-tools{display:flex;align-items:center;gap:8px;padding:0 22px 14px;font-size:10px;color:#939ba7}.status-tools select{font-size:11px;border:1px solid #e9ecf1;border-radius:5px;padding:6px 8px;color:#797f8b;background:#fcfcfd}.scan-notice{font-size:10px;line-height:1.8;color:#9d805e;background:#fff9ed;border:1px solid #f4e8d0;border-radius:6px;padding:10px 12px;margin:0 20px 14px}.friend-badge.unknown{color:#969eab;background:#f7f8fa;border-color:#edf0f3;font-size:9px}.friend-badge.unknown svg{fill:none;stroke:#a4adba}.friend-row.unverified{cursor:default}.friend-row.unverified input{opacity:.45;cursor:not-allowed}.friend-row.unverified:hover{background:#fcfcfd}
 
 .friend-sub.replied{color:#569c78}
+
+.restore-option{display:flex;align-items:flex-start;gap:10px;padding:12px;margin-top:16px;border:1px solid #f3dfcf;border-radius:8px;background:#fffaf5;font-size:11px;cursor:pointer}.restore-option input{margin:2px 0 0;accent-color:var(--orange)}.restore-option strong{font-weight:600}.restore-option small{display:block;color:#9a8a7c;font-size:10px;line-height:1.7;margin-top:4px}.restore-option:has(input:disabled){cursor:default}

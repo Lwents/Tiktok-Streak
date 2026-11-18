@@ -48,6 +48,7 @@ class Worker(threading.Thread):
         auto_scan_pending = None
         account_state = AccountState()
         replied_until = {}
+        recovery_checks = {}
         try:
             resume_payload = read_json(self.root / 'automation.json', None) if self.persist_automation else None
             if resume_payload is not None and (not isinstance(resume_payload, dict)
@@ -55,6 +56,7 @@ class Worker(threading.Thread):
                     or not isinstance(resume_payload.get('targets'), list)
                     or not isinstance(resume_payload.get('message'), str)
                     or not resume_payload.get('message', '').strip()
+                    or not isinstance(resume_payload.get('auto_restore', False), bool)
                     or len(resume_payload.get('message', '')) > 500
                     or any(not isinstance(target, dict) or not isinstance(target.get('key'), str)
                            for target in resume_payload.get('targets', []))
@@ -181,7 +183,9 @@ class Worker(threading.Thread):
                             resume_payload = None
                             if saved['account_username'] == scan_account['username'] and saved['channel'] == channel:
                                 approved = {target.get('key') for target in saved['targets'] if isinstance(target, dict)}
-                                targets = [row for row in rows if row['key'] in approved and row.get('streak_status') in ('verified', 'history_confirmed')]
+                                targets = [row for row in rows if row['key'] in approved and
+                                           (row.get('streak_status') in ('verified', 'history_confirmed')
+                                            or (saved.get('auto_restore') is True and row.get('history_evidence', {}).get('recovery')))]
                                 if targets:
                                     automatic = {**saved, 'targets': targets}
                                     self.stop_sending.clear()
@@ -213,6 +217,26 @@ class Worker(threading.Thread):
                             if self.stop_sending.is_set() or self.closing.is_set():
                                 break
                             key = 'gui:' + current_account['username'].casefold() + ':' + target['key']
+                            if payload.get('auto_restore') is True and time.monotonic() >= recovery_checks.get(key, 0):
+                                recovery_checks[key] = time.monotonic() + 300
+                                try:
+                                    recovery = browser.restore_streak(target, current_account['username'], stop=self.closing)
+                                    evidence = recovery.get('evidence', {})
+                                    self.emit('history', {'key': target['key'], 'account_username': current_account['username'],
+                                                          'evidence': evidence, 'recovery': recovery})
+                                    if evidence.get('status') == 'history_confirmed':
+                                        target.update(streak_status='history_confirmed', history_evidence=evidence)
+                                    if recovery['status'] == 'restored':
+                                        replied_until.pop(key, None)
+                                        self.emit('log', f"Đã khôi phục chuỗi với {target['name']}; đã thấy thông báo xác nhận của TikTok.")
+                                    elif recovery['status'] not in ('not_needed',):
+                                        self.emit('log', f"Chuỗi của {target['name']} cần khôi phục: " + recovery.get('reason', 'TikTok không còn cho phép khôi phục thông báo này.'))
+                                        continue
+                                except Exception as exc:
+                                    self.emit('log', f"Chưa khôi phục chuỗi với {target['name']}: {str(exc).splitlines()[0]}")
+                                    continue
+                            if target.get('history_evidence', {}).get('recovery'):
+                                continue
                             if replied_until.get(key, 0) > time.time():
                                 continue
                             record = state.get(key, {})

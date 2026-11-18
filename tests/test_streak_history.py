@@ -62,6 +62,29 @@ class HistoryEvidenceChecks(unittest.TestCase):
         self.add(0, 'system', 1, 'streak_end_with_restore')
         self.assertEqual(analyze_history(self.snapshot())['reason'], 'later_end_notice')
 
+    def test_ending_without_a_recent_positive_still_exposes_recovery(self):
+        self.add(1, 'self')
+        self.add(0, 'system', 1, 'streak_end_with_restore_with_pet', hour=1)
+        result = analyze_history(self.snapshot())
+        self.assertEqual(result['reason'], 'later_end_notice')
+        self.assertEqual(result['status'], 'unknown')
+        self.assertEqual(result['recovery']['status'], 'available')
+        self.assertEqual(result['recovery']['deadline_at'], self.messages[-1]['at'] + 48 * 3600)
+
+    def test_expired_and_no_restore_endings_never_offer_a_restore(self):
+        self.add(3, 'system', 1, 'streak_end_with_restore')
+        self.assertEqual(analyze_history(self.snapshot())['recovery']['status'], 'expired')
+        self.messages = []
+        self.add(0, 'system', 1, 'streak_end_without_restore')
+        self.assertEqual(analyze_history(self.snapshot())['recovery']['status'], 'unavailable')
+
+    def test_new_restore_notice_clears_the_old_ending(self):
+        self.add(0, 'system', 1, 'streak_end_with_restore', hour=1)
+        self.add(0, 'system', 1, 'streak_new_recover_with_pet', hour=2)
+        result = analyze_history(self.snapshot())
+        self.assertNotIn('recovery', result)
+        self.assertEqual(result['marker_at'], self.messages[-1]['at'])
+
     def test_restore_after_end_still_requires_continuous_exchange(self):
         for d in range(4):
             self.both(d)

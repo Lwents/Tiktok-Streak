@@ -27,6 +27,8 @@ const icon = name => {
 };
 const number = n => String(n).padStart(2, '0');
 const eligibleRow = row => ['verified', 'history_confirmed'].includes(row.streak_status);
+const recoveryNotice = row => row.history_evidence?.recovery;
+const selectableRow = row => eligibleRow(row) || ($('auto-restore').checked && recoveryNotice(row)?.status === 'available' && recoveryNotice(row).deadline_at * 1000 > Date.now());
 function replyToday(row) {
   if (!row.reply?.day || !row.reply?.timezone) return 'unknown';
   try {
@@ -55,13 +57,13 @@ function syncSelection() {
     selected.clear();
     if (profile) loadExclusions(); else excluded.clear();
   }
-  const available = new Set(state.rows.filter(eligibleRow).map(row => row.key));
+  const available = new Set(state.rows.filter(selectableRow).map(row => row.key));
   selected = new Set([...selected].filter(key => available.has(key)));
   if (!profile || $('browser-select').value !== state.status.channel) { selected.clear(); return; }
   if (state.status.busy || state.status.rows_cached || state.status.account_checking) return;
   // Keep completed chats in the daily schedule; the worker skips today's replies.
   // Explicit exclusions survive polling, refreshes and reopening this account.
-  selected = new Set(state.rows.filter(row => eligibleRow(row) && !excluded.has(row.key)).map(row => row.key));
+  selected = new Set(state.rows.filter(row => selectableRow(row) && !excluded.has(row.key)).map(row => row.key));
 }
 function notify(message, error = false) {
   $('toast').textContent = message;
@@ -71,7 +73,7 @@ function notify(message, error = false) {
   toastTimer = setTimeout(() => $('toast').hidden = true, error ? 6500 : 3500);
 }
 function settings() {
-  return {message: $('message').value, hours: Number($('hours').value), channel: $('browser-select').value};
+  return {message: $('message').value, hours: Number($('hours').value), channel: $('browser-select').value, auto_restore: $('auto-restore').checked};
 }
 async function api(path, data) {
   const response = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-App-Token': token}, body: JSON.stringify(data)});
@@ -104,12 +106,12 @@ function filteredRows() {
   const query = $('search').value.trim().toLocaleLowerCase('vi');
   const filter = $('streak-filter').value;
   return (state?.rows || []).filter(row => row.name.toLocaleLowerCase('vi').includes(query) &&
-    (filter === 'all' || (filter === 'verified' ? eligibleRow(row) : filter === 'needed' ? eligibleRow(row) && replyToday(row) === 'needed' : filter === 'replied' ? eligibleRow(row) && replyToday(row) === 'replied' : !eligibleRow(row))));
+    (filter === 'all' || (filter === 'recovery' ? Boolean(recoveryNotice(row)) : filter === 'verified' ? eligibleRow(row) : filter === 'needed' ? eligibleRow(row) && replyToday(row) === 'needed' : filter === 'replied' ? eligibleRow(row) && replyToday(row) === 'replied' : !eligibleRow(row))));
 }
 function renderFriends() {
   if (!state) return;
   const visible = filteredRows();
-  const signature = JSON.stringify([state.rows, state.rows.map(replyToday), [...selected], $('search').value, $('streak-filter').value, state.status.busy, state.status.automatic, state.status.rows_cached, state.status.account_checking]);
+  const signature = JSON.stringify([state.rows, state.rows.map(replyToday), [...selected], $('auto-restore').checked, $('search').value, $('streak-filter').value, state.status.busy, state.status.automatic, state.status.rows_cached, state.status.account_checking]);
   if (signature === renderedRows) return;
   renderedRows = signature;
   const list = $('friend-list');
@@ -121,7 +123,7 @@ function renderFriends() {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.checked = selected.has(row.key);
-    checkbox.disabled = state.status.busy || state.status.automatic || state.status.rows_cached || state.status.account_checking || !verified;
+    checkbox.disabled = state.status.busy || state.status.automatic || state.status.rows_cached || state.status.account_checking || !selectableRow(row);
     checkbox.setAttribute('aria-label', 'Chọn ' + row.name);
     checkbox.addEventListener('change', () => {
       saveChoice(row.key, checkbox.checked);
@@ -136,18 +138,20 @@ function renderFriends() {
     const reply = replyToday(row);
     sub.className = 'friend-sub' + (reply === 'replied' ? ' replied' : '');
     sub.textContent = (row.is_group ? 'Nhóm · ' : '') + (reply === 'replied' ? 'Bạn đã rep hôm nay · Tool tự bỏ qua' : reply === 'needed' ? 'Bạn chưa rep hôm nay' : row.streak_status === 'history_confirmed' ? 'Thông báo chuỗi TikTok · Chưa kiểm tra rep hôm nay' : verified ? 'Đã xác minh huy hiệu chuỗi' : 'Chưa có trạng thái chuỗi hiện tại'); name.append(sub);
+    if (recoveryNotice(row)) sub.textContent = row.recovery?.reason || (recoveryNotice(row).status === 'expired' ? 'Đã quá hạn khôi phục của TikTok' : 'Đã mất chuỗi · Chờ khôi phục trước khi gửi tiếp');
     const badge = document.createElement('span');
     badge.className = 'friend-badge' + (verified ? '' : ' unknown'); badge.title = row.streak_status === 'history_confirmed' ? `Đối chiếu thông báo chuỗi ngày ${row.history_evidence.marker_day} với lịch sử trao đổi. Số ngày hiển thị là mức tối thiểu quan sát được (${row.history_evidence.timezone}).` : row.badge || 'Không đủ dữ liệu để xác minh chuỗi';
     badge.append(icon(verified ? 'fire' : 'clock'));
     const days = (row.badge || '').match(/\b(\d{1,5})\b/);
     badge.append(document.createTextNode(verified ? (days ? `${row.streak_status === 'history_confirmed' ? '≥' : ''}${days[1]} ngày` : 'Đã xác minh') : 'Chưa xác minh'));
+    if (recoveryNotice(row)) { badge.replaceChildren(icon('refresh'), document.createTextNode(recoveryNotice(row).status === 'expired' ? 'Hết hạn khôi phục' : 'Cần khôi phục')); badge.title = 'TikTok báo mất chuỗi ngày ' + recoveryNotice(row).ended_day; }
     label.append(checkbox, avatar, name, badge); fragment.append(label);
   }
   list.replaceChildren(fragment);
   $('empty-state').hidden = state.rows.length > 0;
   $('no-results').hidden = !state.rows.length || visible.length > 0;
   $('no-results').textContent = $('search').value.trim() ? 'Không có tên phù hợp với tìm kiếm.' : $('streak-filter').value === 'verified' ? 'Chưa tìm được cuộc trò chuyện có đủ bằng chứng chuỗi.' : 'Không có cuộc trò chuyện trong nhóm này.';
-  const eligible = visible.filter(row => eligibleRow(row));
+  const eligible = visible.filter(selectableRow);
   const chosenVisible = eligible.filter(row => selected.has(row.key)).length;
   $('select-all').checked = eligible.length > 0 && chosenVisible === eligible.length;
   $('select-all').indeterminate = chosenVisible > 0 && chosenVisible < eligible.length;
@@ -170,6 +174,11 @@ function updateCounts() {
   if (groups || replied) {
     $('scan-notice').hidden = false;
     $('scan-notice').textContent += ` Có ${groups} nhóm có chuỗi. ${replied} chat bạn đã rep hôm nay sẽ được tự bỏ qua; tool kiểm tra lại ngay trước khi gửi.`;
+  }
+  const lost = state.rows.filter(row => recoveryNotice(row));
+  if (lost.length) {
+    $('scan-notice').hidden = false;
+    $('scan-notice').textContent += ` ${lost.length} chuỗi đã mất (${lost.slice(0, 3).map(row => row.name).join(', ')}). ` + ($('auto-restore').checked ? 'Tool tự kiểm tra khôi phục cho các chat đã chọn khi TikTok còn cho phép.' : 'Bật Tự khôi phục chuỗi nếu bạn muốn tool xử lý các chat này.');
   }
   if (state.status.rows_cached) {
     $('scan-notice').hidden = false;
@@ -228,11 +237,11 @@ function updateControls() {
   const s = state.status;
   const busy = pending || s.busy;
   const locked = busy || s.automatic || !online;
-  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'search']) $(id).disabled = locked;
+  for (const id of ['message', 'hours', 'hours-minus', 'hours-plus', 'browser-select', 'search', 'auto-restore']) $(id).disabled = locked;
   for (const id of ['hero-login', 'qr-login', 'empty-login', 'account-refresh']) $(id).disabled = locked;
   $('scan-button').disabled = locked || !s.browser_connected || !state.account?.authenticated;
   const unconfirmed = s.rows_cached || s.account_checking;
-  $('select-all').disabled = locked || unconfirmed || !filteredRows().some(row => eligibleRow(row));
+  $('select-all').disabled = locked || unconfirmed || !filteredRows().some(selectableRow);
   $('streak-filter').disabled = locked;
   const valid = $('message').value.trim() && Number.isFinite(Number($('hours').value)) && Number($('hours').value) >= 1 && Number($('hours').value) <= 168;
   $('send-button').disabled = locked || unconfirmed || !selected.size || !valid;
@@ -287,12 +296,14 @@ async function poll() {
       $('message').value = state.settings.message;
       $('hours').value = state.settings.hours;
       $('browser-select').value = state.settings.channel;
+      $('auto-restore').checked = state.settings.auto_restore === true;
       initialized = true;
       updatePreview();
     } else if (!dirty && !pending && document.activeElement !== $('message') && document.activeElement !== $('hours') && document.activeElement !== $('browser-select')) {
       $('message').value = state.settings.message;
       $('hours').value = state.settings.hours;
       $('browser-select').value = state.settings.channel;
+      $('auto-restore').checked = state.settings.auto_restore === true;
       updatePreview();
     }
     syncSelection();
@@ -340,7 +351,7 @@ $('stop-button').addEventListener('click', () => action('stop'));
 $('search').addEventListener('input', renderFriends);
 $('streak-filter').addEventListener('change', () => {renderFriends(); updateControls();});
 $('select-all').addEventListener('change', () => {
-  for (const row of filteredRows().filter(row => eligibleRow(row))) {
+  for (const row of filteredRows().filter(selectableRow)) {
     saveChoice(row.key, $('select-all').checked);
   }
   renderFriends(); updateCounts(); updateControls();
@@ -350,6 +361,7 @@ window.addEventListener('storage', event => {
   loadExclusions(); syncSelection(); renderFriends(); updateCounts(); updateControls();
 });
 for (const id of ['message', 'hours']) $(id).addEventListener('input', () => { updatePreview(); scheduleSave(); });
+$('auto-restore').addEventListener('change', () => { syncSelection(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
 $('browser-select').addEventListener('change', () => { selected.clear(); renderFriends(); updateCounts(); updateControls(); scheduleSave(); });
 for (const [id, step] of [['hours-minus', -1], ['hours-plus', 1]]) $(id).addEventListener('click', () => {
   $('hours').value = Math.min(168, Math.max(1, (Number($('hours').value) || 20) + step));

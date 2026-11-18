@@ -1,5 +1,5 @@
 /* Read-only access to the TikTok client's existing SDK. Never calls send/mark-read. */
-async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText}) => {
+async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText, recoveryContext = false}) => {
   const row = document.querySelector('[data-e2e="dm-new-conversation-item"]');
   if (!row) return {error: 'chat_list_missing'};
   let fiber = row[Object.keys(row).find(key => key.startsWith('__reactFiber$'))];
@@ -37,6 +37,8 @@ async ({conversationId, cursor, limit = 50, cachedOnly = false, sentText}) => {
   const self=String(sdk.ctx.option.userId);
   const peer=String(conv.toParticipantUserId);
   const isGroup=Boolean(conv.isGroupChat);
+  if (recoveryContext) return {conversation_id:conv.id,self_id:self,peer_user_id:peer,
+    conversation_short_id:String(conv.shortId),is_group:isGroup,is_member:conv.isMember!==false};
   const directionOf=sender=>sender===self?'self':(isGroup?/^[1-9]\d*$/.test(sender):sender===peer)?'peer':'system';
   if (typeof sentText === 'string') {
     const matches=[];

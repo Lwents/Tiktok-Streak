@@ -80,7 +80,10 @@ class Dashboard:
         channel = data.get('channel', 'chrome')
         if channel not in ('chrome', 'msedge'):
             raise ValueError('Chọn Chrome hoặc Edge.')
-        return {'message': message, 'hours': hours, 'channel': channel}
+        auto_restore = data.get('auto_restore', False)
+        if not isinstance(auto_restore, bool):
+            raise ValueError('Tùy chọn khôi phục chuỗi phải là bật hoặc tắt.')
+        return {'message': message, 'hours': hours, 'channel': channel, 'auto_restore': auto_restore}
 
     def log(self, text):
         with self.lock:
@@ -116,6 +119,23 @@ class Dashboard:
                             if row['key'] == value['key']:
                                 row['reply'] = dict(value['reply'])
                                 break
+                elif kind == 'history':
+                    if value.get('account_username') == (self.account or {}).get('username'):
+                        for row in self.rows:
+                            if row['key'] == value['key']:
+                                proof = value['evidence']
+                                row['history_evidence'] = dict(proof)
+                                row['recovery'] = {k: v for k, v in value['recovery'].items() if k != 'evidence'}
+                                if proof.get('status') == 'history_confirmed':
+                                    row.update(streak_status='history_confirmed', badge=f"≥{proof['days_lower_bound']} ngày · lịch sử TikTok")
+                                elif proof.get('recovery'):
+                                    row.update(streak_status='unknown', badge='')
+                                if proof.get('reply'):
+                                    row['reply'] = dict(proof['reply'])
+                                break
+                        self.status['verified_count'] = sum(row.get('streak_status') in ('verified', 'history_confirmed') for row in self.rows)
+                        self.status['unknown_count'] = len(self.rows) - self.status['verified_count']
+                        self.save_conversations()
                 elif kind == 'account':
                     previous = (self.account or {}).get('username')
                     self.account = value
@@ -206,7 +226,9 @@ class Dashboard:
                 rows = {row['key']: row for row in self.rows}
                 if any(key not in rows for key in keys):
                     raise ValueError('Danh sách đã thay đổi. Quét và chọn lại người nhận.')
-                if any(rows[key].get('streak_status') not in ('verified', 'history_confirmed') for key in keys):
+                if any(rows[key].get('streak_status') not in ('verified', 'history_confirmed') and not
+                       (settings['auto_restore'] and rows[key].get('conversation_id') and rows[key].get('history_evidence', {}).get('recovery', {}).get('status') == 'available'
+                        and rows[key]['history_evidence']['recovery'].get('deadline_at', 0) > time.time()) for key in keys):
                     raise ValueError('Chưa xác minh được chuỗi hiện tại của người nhận. Tool chưa thể tự động gửi đúng người có lửa từ dữ liệu này.')
                 if settings['channel'] != self.status['channel']:
                     raise ValueError('Kết nối và quét lại sau khi đổi trình duyệt.')

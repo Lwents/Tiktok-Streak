@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import date, timedelta
 from streak_history import analyze_history, analyze_reply
 from session_import import apply_session_import
+from streak_recovery import RecoveryManager, restore_request
 
 # Deliberately ignore the preview text/emoji: a message containing 🔥 is not a streak.
 ROW_SELECTOR = '[data-e2e="dm-new-conversation-item"], [data-e2e="chat-list-item"], [data-e2e="chat-list-item-wrapper"]'
@@ -254,6 +255,40 @@ class TikTokBrowser:
             cursor = next_cursor
             self.page.wait_for_timeout(150)
         return result
+
+    def restore_streak(self, target, expected_username, stop=None):
+        account = self.read_account()
+        if not account or not account.get('authenticated') or account.get('username') != expected_username:
+            raise RuntimeError('Chưa xác nhận đúng tài khoản để khôi phục chuỗi.')
+        evidence = self.history_evidence(target['conversation_id'], stop=stop)
+        notice = evidence.get('recovery')
+        if not notice:
+            return {'status': 'not_needed', 'evidence': evidence}
+        if notice['status'] != 'available':
+            return {'status': 'unavailable', 'evidence': evidence}
+        source = (Path(__file__).parent / 'browser' / 'history.js').read_text(encoding='utf-8')
+        context = self.page.evaluate(source, {'conversationId': target['conversation_id'], 'recoveryContext': True})
+        if context.get('conversation_id') != target['conversation_id']:
+            raise RuntimeError('Chưa xác nhận ID cuộc trò chuyện để khôi phục.')
+        cookies = self.context.cookies('https://www.tiktok.com')
+        user_agent = self.page.evaluate('navigator.userAgent')
+        def verify():
+            result = {}
+            for _ in range(10):
+                if stop is not None and stop.is_set():
+                    break
+                current = self.read_account()
+                if not current or current.get('username') != expected_username:
+                    break
+                result = self.history_evidence(target['conversation_id'], stop=stop)
+                if result.get('restored') and result.get('marker_at', 0) >= notice['ended_at']:
+                    break
+                self.page.wait_for_timeout(1000)
+            return result
+        manager = RecoveryManager(self.root / 'recovery-state.json')
+        result = manager.restore(expected_username, self.channel, target, evidence,
+                                 lambda: restore_request(context, cookies, user_agent), verify)
+        return {'evidence': evidence, **result}
 
     def scan(self, stop, on_progress=None):
         self.ensure_inbox()

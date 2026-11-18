@@ -66,6 +66,16 @@ TikTok's `Sleep hours` reminder can cover the inbox after midnight. The adapter
 uses its visible `Return for now` button before opening chats or sending.
 It leaves sleep-hour settings unchanged; unrecognized gates still block sending.
 
+`auto_restore` in the saved settings/job explicitly enables streak restoration for
+the approved chats. The worker checks those chats every 5 minutes while running,
+including chats already replied to today. Only an explicit unexpired TikTok ending
+notice offering restoration permits a POST. The native panel's form endpoint uses
+the account's existing session in memory; no new cookie export is created.
+`recovery-state.json` records each attempt before the POST. An uncertain result
+blocks repeat attempts for the same account, conversation and ending event across
+browser changes and restarts. The worker requires a newer TikTok restore notice
+before reporting success or sending into that restored chat.
+
 Cookie migration uses the owner's running Chrome context to export TikTok cookies
 through SSH into a private `session-import.json`. The application deletes this file
 after authenticating the expected account. Do not put this file or the browser profile

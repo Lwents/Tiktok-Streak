@@ -28,6 +28,8 @@ class FakeBrowser:
     scan_status = 'unknown'
     scan_extra_rows = []
     reply_conversations = []
+    recovery_calls = 0
+    recovery_result = None
     def __init__(self, root, inspect=False):
         self.context = None
     def ensure_open(self, channel):
@@ -55,6 +57,9 @@ class FakeBrowser:
                 'valid_until':type(self).midnight_override or time.time()+3600}
     def send(self, message):
         type(self).sent += 1
+    def restore_streak(self, target, expected_username, stop=None):
+        type(self).recovery_calls += 1
+        return type(self).recovery_result or {'status':'not_needed','evidence':{'status':'history_confirmed','days_lower_bound':7}}
     def scan(self, stop, on_progress=None):
         type(self).scans += 1
         if type(self).switch_during_scan:
@@ -80,6 +85,8 @@ class WorkerChecks(unittest.TestCase):
         FakeBrowser.scan_status = 'unknown'
         FakeBrowser.scan_extra_rows = []
         FakeBrowser.reply_conversations = []
+        FakeBrowser.recovery_calls = 0
+        FakeBrowser.recovery_result = None
         self.tmp = tempfile.TemporaryDirectory()
         self.events = queue.Queue()
         self.patch = patch('worker.TikTokBrowser', FakeBrowser)
@@ -380,6 +387,45 @@ class WorkerChecks(unittest.TestCase):
         with patch.object(FakeBrowser,'pump',return_value=False):
             self.wait_event('status',lambda value:value.get('browser_connected') is False)
         self.assertFalse((Path(self.tmp.name)/'automation.json').exists())
+
+    def test_restore_is_checked_even_when_this_account_already_replied_today(self):
+        payload=self.send_payload();payload['auto_restore']=True
+        FakeBrowser.reply_answers=['replied']
+        FakeBrowser.recovery_result={'status':'restored','evidence':{'status':'history_confirmed','days_lower_bound':3}}
+        self.worker.commands.put(('auto',payload))
+        self.wait_event('log',lambda value:'Đã khôi phục chuỗi với Alice' in value)
+        self.wait_event('ready')
+        self.assertEqual(FakeBrowser.recovery_calls,1)
+        self.assertEqual(FakeBrowser.sent,0)
+
+    def test_unconfirmed_restore_does_not_send_or_prepare_a_message(self):
+        payload=self.send_payload();payload['auto_restore']=True
+        FakeBrowser.recovery_result={'status':'uncertain','reason':'Waiting for server',
+                                    'evidence':{'status':'unknown','recovery':{'status':'available'}}}
+        self.worker.commands.put(('auto',payload))
+        self.wait_event('ready')
+        self.assertEqual(FakeBrowser.recovery_calls,1)
+        self.assertEqual(FakeBrowser.sent,0)
+        self.assertEqual(FakeBrowser.prepared,0)
+
+    def test_restoration_stays_off_without_explicit_setting(self):
+        payload=self.send_payload();FakeBrowser.reply_answers=['replied']
+        self.worker.commands.put(('auto',payload))
+        self.wait_event('ready')
+        self.assertEqual(FakeBrowser.recovery_calls,0)
+
+    def test_resume_retains_only_previously_approved_ended_chat_for_restore(self):
+        saved=self.send_payload();saved['auto_restore']=True;FakeBrowser.reply_answers=['replied']
+        ended={'key':'conv:one','conversation_id':'one','name':'Alice','streak_status':'unknown',
+               'history_evidence':{'status':'unknown','recovery':{'status':'available'}}}
+        unknown={**ended,'key':'conv:other','conversation_id':'other','name':'Other'}
+        self.persistent_worker(saved)
+        with patch.object(FakeBrowser,'scan',return_value=([ended,unknown],2)):
+            self.worker.commands.put(('restore',{'channel':'chrome'}))
+            self.wait_event('log',lambda value:'Đã khôi phục lịch tự động' in value)
+            self.wait_event('log',lambda value:'đã rep hôm nay' in value)
+        self.assertEqual(FakeBrowser.recovery_calls,1)
+        self.assertEqual(FakeBrowser.reply_conversations,['one'])
 
 
 if __name__ == '__main__':

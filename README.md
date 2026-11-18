@@ -31,6 +31,14 @@ Trước mỗi lần gửi, tool đọc lịch sử hôm nay của đúng chat, 
 
 Tool gửi tin theo lịch, chưa đọc nội dung tin đến để tự trả lời. Chuỗi còn phụ thuộc người nhận và [quy tắc TikTok](https://support.tiktok.com/en/using-tiktok/messaging-and-notifications/streaks).
 
+## Tự khôi phục chuỗi
+
+Bật **Tự khôi phục chuỗi** trong phần soạn tin trước khi bật lịch. Tool theo dõi các chat đã chọn, nhận diện thông báo mất chuỗi và dùng lượt khôi phục của tài khoản khi TikTok còn cho phép. Chỉ các chat trong phạm vi bạn đã chọn được xử lý. Các chat có thông báo khôi phục còn hạn có thể được chọn khi bật tùy chọn này; chat chưa xác minh thông thường vẫn bị khóa.
+
+Mỗi 5 phút, lịch đang chạy kiểm tra lại thông báo của các chat đã chọn, kể cả chat bạn đã rep hôm nay. Khôi phục thành công được xác nhận bằng thông báo hệ thống mới trong lịch sử chat. Sau đó tool kiểm tra rep hôm nay và gửi tiếp nếu cần. Bộ lọc **Chuỗi đã mất** hiển thị các thông báo kết thúc; thông báo cũ đã được khôi phục không bị coi là chuỗi vừa mất.
+
+TikTok giới hạn thời gian khôi phục trong 48 giờ sau khi chuỗi kết thúc và áp dụng số lượt của tài khoản. `recovery-state.json` lưu trạng thái từng lần thử trước khi gọi khôi phục. Nếu mất kết nối hoặc chưa xác nhận được kết quả, tool khóa gọi lặp cho cùng tài khoản, chat và lần mất chuỗi; vẫn kiểm tra thông báo xác nhận. Lỗi TikTok đã trả rõ ràng được chờ ít nhất một giờ trước khi thử lại. Không xóa sổ này khi một lần khôi phục còn chưa rõ kết quả. Cookie được đọc trực tiếp từ phiên Chrome/Edge đang đăng nhập và không được lưu trong sổ khôi phục.
+
 ## Lưu trữ và xử lý lỗi
 
 - `desktop-settings.json`: trình duyệt và nội dung gửi. Trường giờ của bản cũ chỉ được giữ để tương thích dữ liệu; lịch hiện tại là theo ngày. Giao diện tự chọn chat đã xác minh sau khi tải dữ liệu mới. Những chat bạn bỏ chọn được lưu trong trình duyệt, riêng theo tài khoản TikTok và Chrome/Edge; không bị tự chọn lại khi tải trang hoặc quét lại. Việc chọn không tự bật gửi tin. Tác vụ đã bật trong backend vẫn dùng lựa chọn ban đầu.

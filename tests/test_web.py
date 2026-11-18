@@ -91,6 +91,38 @@ class WebChecks(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertTrue(self.app.worker.commands.empty())
 
+    def test_restore_setting_allows_only_canonical_ended_chats(self):
+        self.app.rows[0].update(streak_status='unknown',conversation_id='one',
+            history_evidence={'recovery':{'status':'available','event_id':'end-one','deadline_at':time.time()+3600}})
+        self.assertEqual(self.request('/api/action',{'command':'auto','target_keys':['chat-alice']})[0],400)
+        body={'command':'auto','target_keys':['chat-alice'],'settings':{**self.app.settings,'auto_restore':True}}
+        self.assertEqual(self.request('/api/action',body)[0],200)
+        command,payload=self.app.worker.commands.get_nowait()
+        self.assertEqual(command,'auto')
+        self.assertTrue(payload['auto_restore'])
+        self.assertEqual([target['key'] for target in payload['targets']],['chat-alice'])
+
+    def test_restore_setting_requires_boolean(self):
+        self.assertEqual(self.request('/api/settings',{'auto_restore':'true'})[0],400)
+
+    def test_recovery_filter_and_selection_need_the_restore_option(self):
+        from playwright.sync_api import sync_playwright,expect
+        self.app.rows[0].update(streak_status='unknown',conversation_id='one',
+            history_evidence={'recovery':{'status':'available','event_id':'end-one','ended_day':'2026-11-18','deadline_at':time.time()+3600}})
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True,channel='chrome' if sys.platform=='win32' else None)
+            page=browser.new_page();page.goto(self.url)
+            expect(page.locator('#selected-count')).to_have_text('01')
+            page.locator('#auto-restore').check()
+            expect(page.locator('#selected-count')).to_have_text('02')
+            page.locator('#streak-filter').select_option('recovery')
+            expect(page.locator('.friend-row')).to_have_count(1)
+            expect(page.locator('.friend-badge')).to_have_text('Cần khôi phục')
+            expect(page.locator('.friend-row input')).to_be_enabled()
+            page.locator('#auto-restore').uncheck()
+            expect(page.locator('.friend-row input')).to_be_disabled()
+            browser.close()
+
     def test_sending_requires_authenticated_account(self):
         self.app.account = {'authenticated': False}
         status, _ = self.request('/api/action', {'command': 'send', 'target_keys': ['chat-alice']})
